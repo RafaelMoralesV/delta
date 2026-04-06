@@ -1,0 +1,10 @@
+[workspace]
+members = [ "core", "tui" ]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = "0.4"
+regex = "1.10"
+serde_json = "1.0"

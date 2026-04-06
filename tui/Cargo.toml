@@ -1,0 +1,10 @@
+[package]
+name = "tui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+core = { path = "../core" }
+anyhow = { workspace = true }
+ratatui = "0.30"
+ratatui-textarea = "0.8"
