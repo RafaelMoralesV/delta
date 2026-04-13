@@ -1,5 +1,5 @@
 [workspace]
-members = [ "core", "tui" ]
+members = ["core", "tui"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -8,3 +8,4 @@ thiserror = "1.0"
 chrono = "0.4"
 regex = "1.10"
 serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }

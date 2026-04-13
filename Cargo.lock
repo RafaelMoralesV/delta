@@ -1439,6 +1439,8 @@ dependencies = [
  "core",
  "ratatui",
  "ratatui-textarea",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

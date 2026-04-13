@@ -8,3 +8,5 @@ core = { path = "../core" }
 anyhow = { workspace = true }
 ratatui = "0.30"
 ratatui-textarea = "0.8"
+serde.workspace = true
+serde_json.workspace = true
