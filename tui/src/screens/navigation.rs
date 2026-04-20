@@ -35,6 +35,8 @@ pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
         KeyCode::Enter => Some(NavMsg::Select.into()),
         KeyCode::Char('c') => Some(NavMsg::ToConfig.into()),
         KeyCode::Char(' ') => Some(NavMsg::MoveInto.into()),
+        KeyCode::Char('k') => Some(NavMsg::MoveUp.into()),
+        KeyCode::Char('j') => Some(NavMsg::MoveDown.into()),
         KeyCode::Esc => Some(Message::Quit),
         _ => None,
     }
