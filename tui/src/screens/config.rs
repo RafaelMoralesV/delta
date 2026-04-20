@@ -1,9 +1,12 @@
 use ratatui::{
     Frame,
+    crossterm::event::{self, KeyCode},
     layout::{Alignment, Constraint, Layout, Rect},
     widgets::{Block, Borders, Paragraph},
 };
 use ratatui_textarea::TextArea;
+
+use crate::{App, AppState};
 
 pub struct ConfigModel<'a> {
     pub text_area: TextArea<'a>,
@@ -35,4 +38,19 @@ pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
     );
 
     f.render_widget(&model.text_area, layout[1]);
+}
+
+pub fn update(app: &mut App, event: event::KeyEvent, model: &mut ConfigModel<'static>) {
+    let key = event.code;
+    match key {
+        KeyCode::Esc => app.state = AppState::Navigating,
+        KeyCode::Enter => {
+            app.config.username = model.text_area.lines()[0].trim().to_string();
+            let _ = app.config.save();
+            app.state = AppState::Navigating;
+        }
+        _ => {
+            model.text_area.input(event);
+        }
+    }
 }

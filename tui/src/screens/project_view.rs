@@ -1,8 +1,11 @@
 use ratatui::{
     Frame,
+    crossterm::event::{self, KeyCode},
     layout::Rect,
     widgets::{Block, Borders, Paragraph},
 };
+
+use crate::{App, AppState};
 
 pub struct ProjectModel {
     pub name: String,
@@ -41,4 +44,12 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
             .borders(Borders::ALL),
     );
     f.render_widget(p, area);
+}
+
+pub fn update(app: &mut App, event: event::KeyEvent) {
+    let key = event.code;
+    match key {
+        KeyCode::Esc => app.state = AppState::Navigating,
+        _ => {}
+    }
 }

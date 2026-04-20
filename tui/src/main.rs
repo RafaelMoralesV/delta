@@ -10,7 +10,7 @@ use ratatui::{
     Terminal,
     backend::{Backend, CrosstermBackend},
     crossterm::{
-        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+        event::{self, DisableMouseCapture, EnableMouseCapture, Event},
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
@@ -113,54 +113,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
 }
 
 fn update(app: &mut App, event: event::KeyEvent) {
-    let key = event.code;
     match &mut app.state {
-        AppState::Navigating => match key {
-            KeyCode::Esc => app.should_quit = true,
-            KeyCode::Char('c') => {
-                app.state = AppState::Configuring(ConfigModel::new(app.config.username.clone()));
-            }
-            KeyCode::Up => app.navigation_state.previous(),
-            KeyCode::Down => app.navigation_state.next(),
-            KeyCode::Char(' ') | KeyCode::Enter => {
-                if let Some(i) = app.navigation_state.list_state.selected() {
-                    let selected = app.navigation_state.items[i].clone();
-                    if selected == ".. (Up)" {
-                        app.navigation_state.current_dir.pop();
-                        app.navigation_state.load_directory();
-                    } else {
-                        let new_path = app.navigation_state.current_dir.join(&selected);
-                        if key == KeyCode::Char(' ') {
-                            if new_path.is_dir() {
-                                app.navigation_state.current_dir = new_path;
-                                app.navigation_state.load_directory();
-                            }
-                        } else {
-                            let versions = core::get_current_versions(&new_path, &selected);
-                            app.state = AppState::ViewingProject(ProjectModel {
-                                name: selected,
-                                versions,
-                            });
-                        }
-                    }
-                }
-            }
-            _ => {}
-        },
-        AppState::ViewingProject(_) => match key {
-            KeyCode::Esc => app.state = AppState::Navigating,
-            _ => {}
-        },
-        AppState::Configuring(m) => match key {
-            KeyCode::Esc => app.state = AppState::Navigating,
-            KeyCode::Enter => {
-                app.config.username = m.text_area.lines()[0].trim().to_string();
-                let _ = app.config.save();
-                app.state = AppState::Navigating;
-            }
-            _ => {
-                m.text_area.input(event);
-            }
-        },
+        AppState::Navigating => screens::navigation::update(app, event),
+        AppState::ViewingProject(_) => screens::project_view::update(app, event),
+        AppState::Configuring(m) => screens::config::update(app, event, m),
     }
 }
