@@ -1,10 +1,10 @@
 mod config;
 mod screens;
 
-use crate::config::AppConfig;
 use crate::screens::config::ConfigModel;
 use crate::screens::navigation::NavModel;
 use crate::screens::project_view::ProjectModel;
+use crate::{config::AppConfig, screens::project_view::ProjectMsg};
 
 use ratatui::{
     Terminal,
@@ -17,28 +17,42 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     widgets::Paragraph,
 };
-use std::{env, error::Error, io, path::PathBuf};
+use std::{error::Error, io};
 
 pub enum AppState {
     Navigating,
     ViewingProject(ProjectModel),
-    Configuring(ConfigModel<'static>),
+    Configuring,
 }
 
 struct App {
     state: AppState,
     navigation_state: NavModel,
     config: AppConfig,
+    config_model: ConfigModel<'static>,
     should_quit: bool,
+}
+
+pub enum Message {
+    // Global Actions
+    Quit,
+
+    // Scoped Actions (using From/Into)
+    Navigation(screens::navigation::NavMsg),
+    Config(screens::config::ConfigMsg),
+    Project(ProjectMsg),
 }
 
 impl App {
     fn new() -> Self {
-        let root = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let config = AppConfig::load();
+        let nav_state = NavModel::new(config.default_dir.clone());
+        let config_model = ConfigModel::new(config.username.clone());
+
         Self {
             state: AppState::Navigating,
-            navigation_state: NavModel::new(root),
+            navigation_state: nav_state,
+            config_model,
             config,
             should_quit: false,
         }
@@ -91,8 +105,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                         screens::project_view::view(m, f, chunks[0]);
                         f.render_widget(Paragraph::new("B: Bump | Esc: Atrás"), chunks[1]);
                     }
-                    AppState::Configuring(m) => {
-                        screens::config::view(m, f, chunks[0]);
+                    AppState::Configuring => {
+                        screens::config::view(&mut app.config_model, f, chunks[0]);
                         f.render_widget(
                             Paragraph::new("Enter: Guardar | Esc: Cancelar"),
                             chunks[1],
@@ -106,16 +120,33 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
             if key.kind != event::KeyEventKind::Press {
                 continue;
             }
-            update(app, key);
+
+            let msg = match &app.state {
+                AppState::Navigating => screens::navigation::handle_key_event(key),
+                AppState::Configuring => screens::config::handle_key_event(key),
+                AppState::ViewingProject(_) => screens::project_view::handle_key_event(key),
+            };
+
+            if let Some(m) = msg {
+                update(app, m);
+            }
         }
     }
     Ok(())
 }
 
-fn update(app: &mut App, event: event::KeyEvent) {
-    match &mut app.state {
-        AppState::Navigating => screens::navigation::update(app, event),
-        AppState::ViewingProject(_) => screens::project_view::update(app, event),
-        AppState::Configuring(m) => screens::config::update(app, event, m),
+fn update(app: &mut App, msg: Message) {
+    match msg {
+        Message::Quit => app.should_quit = true,
+        Message::Navigation(sub_msg) => screens::navigation::update(app, sub_msg),
+        Message::Config(sub_msg) => {
+            screens::config::update(
+                &mut app.config,
+                &mut app.config_model,
+                &mut app.state,
+                sub_msg,
+            );
+        }
+        Message::Project(sub_msg) => screens::project_view::update(app, sub_msg),
     }
 }

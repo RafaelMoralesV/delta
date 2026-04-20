@@ -6,10 +6,30 @@ use ratatui::{
 };
 use ratatui_textarea::TextArea;
 
-use crate::{App, AppState};
+use crate::{AppState, Message, config::AppConfig};
 
 pub struct ConfigModel<'a> {
     pub text_area: TextArea<'a>,
+}
+
+pub enum ConfigMsg {
+    UpdateInput(event::KeyEvent),
+    Save,
+    Cancel,
+}
+
+impl From<ConfigMsg> for Message {
+    fn from(v: ConfigMsg) -> Self {
+        Message::Config(v)
+    }
+}
+
+pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
+    match key.code {
+        KeyCode::Enter => Some(ConfigMsg::Save.into()),
+        KeyCode::Esc => Some(ConfigMsg::Cancel.into()),
+        _ => Some(ConfigMsg::UpdateInput(key).into()),
+    }
 }
 
 impl<'a> ConfigModel<'a> {
@@ -40,17 +60,23 @@ pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
     f.render_widget(&model.text_area, layout[1]);
 }
 
-pub fn update(app: &mut App, event: event::KeyEvent, model: &mut ConfigModel<'static>) {
-    let key = event.code;
-    match key {
-        KeyCode::Esc => app.state = AppState::Navigating,
-        KeyCode::Enter => {
-            app.config.username = model.text_area.lines()[0].trim().to_string();
-            let _ = app.config.save();
-            app.state = AppState::Navigating;
+pub fn update(
+    config: &mut AppConfig,
+    model: &mut ConfigModel<'static>,
+    state: &mut AppState,
+    msg: ConfigMsg,
+) {
+    match msg {
+        ConfigMsg::Save => {
+            config.username = model.text_area.lines()[0].trim().to_string();
+            // We can also save the current nav directory as the new default
+            // if you want that behavior, otherwise just keep the existing one.
+            let _ = config.save();
+            *state = AppState::Navigating;
         }
-        _ => {
-            model.text_area.input(event);
+        ConfigMsg::Cancel => *state = AppState::Navigating,
+        ConfigMsg::UpdateInput(ev) => {
+            model.text_area.input(ev);
         }
     }
 }

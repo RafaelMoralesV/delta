@@ -5,11 +5,30 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::{App, AppState};
+use crate::{App, AppState, Message};
 
 pub struct ProjectModel {
     pub name: String,
     pub versions: core::ProjectVersions,
+}
+
+pub enum ProjectMsg {
+    Back,
+    Bump,
+}
+
+impl From<ProjectMsg> for Message {
+    fn from(v: ProjectMsg) -> Self {
+        Message::Project(v)
+    }
+}
+
+pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
+    match key.code {
+        KeyCode::Esc => Some(ProjectMsg::Back.into()),
+        KeyCode::Char('b') => Some(ProjectMsg::Bump.into()),
+        _ => None,
+    }
 }
 
 pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
@@ -46,10 +65,13 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
     f.render_widget(p, area);
 }
 
-pub fn update(app: &mut App, event: event::KeyEvent) {
-    let key = event.code;
-    match key {
-        KeyCode::Esc => app.state = AppState::Navigating,
-        _ => {}
+pub fn update(app: &mut App, msg: ProjectMsg) {
+    match msg {
+        ProjectMsg::Back => app.state = AppState::Navigating,
+        ProjectMsg::Bump => {
+            // Logic for bumping versions goes here.
+            // Since we have mutable access to `app`, we can read `app.config.username`
+            // and perform the IO required.
+        }
     }
 }

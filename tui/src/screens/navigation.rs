@@ -1,3 +1,4 @@
+use crate::{App, AppState, Message, screens::project_view::ProjectModel};
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
@@ -7,15 +8,36 @@ use ratatui::{
 };
 use std::{fs, path::PathBuf};
 
-use crate::{
-    App, AppState,
-    screens::{config::ConfigModel, project_view::ProjectModel},
-};
-
 pub struct NavModel {
     pub current_dir: PathBuf,
     pub items: Vec<String>,
     pub list_state: ListState,
+}
+
+pub enum NavMsg {
+    MoveUp,
+    MoveDown,
+    Select,
+    MoveInto,
+    ToConfig,
+}
+
+impl From<NavMsg> for Message {
+    fn from(value: NavMsg) -> Self {
+        Message::Navigation(value)
+    }
+}
+
+pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
+    match key.code {
+        KeyCode::Up => Some(NavMsg::MoveUp.into()),
+        KeyCode::Down => Some(NavMsg::MoveDown.into()),
+        KeyCode::Enter => Some(NavMsg::Select.into()),
+        KeyCode::Char('c') => Some(NavMsg::ToConfig.into()),
+        KeyCode::Char(' ') => Some(NavMsg::MoveInto.into()),
+        KeyCode::Esc => Some(Message::Quit),
+        _ => None,
+    }
 }
 
 impl NavModel {
@@ -97,37 +119,45 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
     f.render_stateful_widget(list, area, &mut model.list_state);
 }
 
-pub fn update(app: &mut App, event: event::KeyEvent) {
-    match event.code {
-        KeyCode::Esc => app.should_quit = true,
-        KeyCode::Char('c') => {
-            app.state = AppState::Configuring(ConfigModel::new(app.config.username.clone()));
-        }
-        KeyCode::Up => app.navigation_state.previous(),
-        KeyCode::Down => app.navigation_state.next(),
-        KeyCode::Char(' ') | KeyCode::Enter => {
+pub fn update(app: &mut App, msg: NavMsg) {
+    match msg {
+        NavMsg::ToConfig => app.state = AppState::Configuring,
+        NavMsg::MoveUp => app.navigation_state.previous(),
+        NavMsg::MoveDown => app.navigation_state.next(),
+        NavMsg::MoveInto => {
             if let Some(i) = app.navigation_state.list_state.selected() {
                 let selected = app.navigation_state.items[i].clone();
+
                 if selected == ".. (Up)" {
                     app.navigation_state.current_dir.pop();
                     app.navigation_state.load_directory();
                 } else {
                     let new_path = app.navigation_state.current_dir.join(&selected);
-                    if event.code == KeyCode::Char(' ') {
-                        if new_path.is_dir() {
-                            app.navigation_state.current_dir = new_path;
-                            app.navigation_state.load_directory();
-                        }
-                    } else {
-                        let versions = core::get_current_versions(&new_path, &selected);
-                        app.state = AppState::ViewingProject(ProjectModel {
-                            name: selected,
-                            versions,
-                        });
+                    if new_path.is_dir() {
+                        app.navigation_state.current_dir = new_path;
+                        app.navigation_state.load_directory();
                     }
                 }
             }
         }
-        _ => {}
+        NavMsg::Select => {
+            if let Some(i) = app.navigation_state.list_state.selected() {
+                let selected = app.navigation_state.items[i].clone();
+
+                // El usuario puede seleccionar nuestra meta-carpeta. En ese caso, lo mandamos de vuelta pa arriba como
+                // si fuera un MoveInto.
+                if selected == ".. (Up)" {
+                    app.navigation_state.current_dir.pop();
+                    app.navigation_state.load_directory();
+                } else {
+                    let new_path = app.navigation_state.current_dir.join(&selected);
+                    let versions = core::get_current_versions(&new_path, &selected);
+                    app.state = AppState::ViewingProject(ProjectModel {
+                        name: selected,
+                        versions,
+                    });
+                }
+            }
+        }
     }
 }

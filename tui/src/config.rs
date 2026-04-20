@@ -1,16 +1,31 @@
+use dirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppConfig {
     pub username: String,
+    pub default_dir: PathBuf, // New field
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            username: "Anonymous".into(),
+            // Default to current dir if we can't find a home
+            default_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        }
+    }
 }
 
 impl AppConfig {
     fn file_path() -> PathBuf {
-        // Saves in the current directory or home directory
-        PathBuf::from(".bump_config.json")
+        let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        path.push("bump");
+        let _ = fs::create_dir_all(&path);
+        path.push("config.json");
+        path
     }
 
     pub fn load() -> Self {
@@ -20,12 +35,7 @@ impl AppConfig {
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        let content =
-            serde_json::from_str::<serde_json::Value>(&serde_json::to_string(self).unwrap())
-                .unwrap();
-        fs::write(
-            Self::file_path(),
-            serde_json::to_string_pretty(&content).unwrap(),
-        )
+        let content = serde_json::to_string_pretty(self).unwrap();
+        fs::write(Self::file_path(), content)
     }
 }
