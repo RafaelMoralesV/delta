@@ -124,7 +124,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
             let msg = match &app.state {
                 AppState::Navigating => screens::navigation::handle_key_event(key),
                 AppState::Configuring => screens::config::handle_key_event(key),
-                AppState::ViewingProject(_) => screens::project_view::handle_key_event(key),
+                AppState::ViewingProject(model) => {
+                    screens::project_view::handle_key_event(key, model)
+                }
             };
 
             if let Some(m) = msg {
