@@ -140,12 +140,7 @@ fn update(app: &mut App, msg: Message) {
         Message::Quit => app.should_quit = true,
         Message::Navigation(sub_msg) => screens::navigation::update(app, sub_msg),
         Message::Config(sub_msg) => {
-            screens::config::update(
-                &mut app.config,
-                &mut app.config_model,
-                &mut app.state,
-                sub_msg,
-            );
+            screens::config::update(app, sub_msg);
         }
         Message::Project(sub_msg) => screens::project_view::update(app, sub_msg),
     }

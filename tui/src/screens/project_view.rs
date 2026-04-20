@@ -32,12 +32,12 @@ pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
 }
 
 pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
-    let mut info = format!("Project: {}\n\n", model.name);
+    let mut info = format!("Proyecto: {}\n\n", model.name);
 
     let web_v = model
         .versions
         .web
-        .map_or("Not Found".into(), |v| v.to_string());
+        .map_or("No encontrado".into(), |v| v.to_string());
     let web_n = model
         .versions
         .web
@@ -45,21 +45,22 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
     let bl_v = model
         .versions
         .bl
-        .map_or("Not Found".into(), |v| v.to_string());
+        .map_or("No encontrado".into(), |v| v.to_string());
     let bl_n = model
         .versions
         .bl
         .map_or("-".into(), |v| v.bumped().to_string());
 
     info.push_str(&format!(
-        "Web Version: {}\nWeb Next:    {}\n\n",
+        "Versión Web: {}\nSiguiente Web: {}\n\n",
         web_v, web_n
     ));
-    info.push_str(&format!("BL Version:  {}\nBL Next:     {}\n", bl_v, bl_n));
+
+    info.push_str(&format!("Versión BL:   {}\nSiguiente BL: {}\n", bl_v, bl_n));
 
     let p = Paragraph::new(info).block(
         Block::default()
-            .title(" Project Details ")
+            .title(" Detalles del Proyecto ")
             .borders(Borders::ALL),
     );
     f.render_widget(p, area);

@@ -9,7 +9,7 @@ use ratatui::{
 };
 use ratatui_textarea::TextArea;
 
-use crate::{AppState, Message, config::AppConfig};
+use crate::{App, AppState, Message};
 
 #[derive(PartialEq)]
 pub enum ConfigField {
@@ -75,56 +75,52 @@ impl<'a> ConfigModel<'a> {
 
 pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
     let layout = Layout::vertical([
-        Constraint::Length(1), // Help
-        Constraint::Length(3), // Username
-        Constraint::Length(3), // Path
+        Constraint::Length(1), // Ayuda
+        Constraint::Length(3), // Usuario
+        Constraint::Length(3), // Ruta
         Constraint::Min(0),
     ])
     .split(area);
 
     f.render_widget(
-        Paragraph::new("Tab: Switch Fields | Enter: Save | Esc: Cancel")
+        Paragraph::new("Tab: Cambiar Campo | Enter: Guardar | Esc: Cancelar")
             .alignment(Alignment::Center),
         layout[0],
     );
 
-    // We clone the textareas (cheaply) or just modify them temporarily for render
     let mut username_input = model.username_input.clone();
-    username_input.set_block(model.create_block(ConfigField::Username, "User Name"));
+    username_input.set_block(model.create_block(ConfigField::Username, "Nombre de Usuario"));
 
     let mut path_input = model.path_input.clone();
-    path_input.set_block(model.create_block(ConfigField::DefaultPath, "Default Project Path"));
+    path_input.set_block(model.create_block(ConfigField::DefaultPath, "Ruta Base de Proyectos"));
 
     f.render_widget(&username_input, layout[1]);
     f.render_widget(&path_input, layout[2]);
 }
 
-pub fn update(
-    config: &mut AppConfig,
-    model: &mut ConfigModel<'static>,
-    state: &mut AppState,
-    msg: ConfigMsg,
-) {
+pub fn update(app: &mut App, msg: ConfigMsg) {
     match msg {
         ConfigMsg::ToggleFocus => {
-            model.active_field = match model.active_field {
+            app.config_model.active_field = match app.config_model.active_field {
                 ConfigField::Username => ConfigField::DefaultPath,
                 ConfigField::DefaultPath => ConfigField::Username,
             };
         }
         ConfigMsg::Save => {
-            config.username = model.username_input.lines()[0].trim().to_string();
-            let path_str = model.path_input.lines()[0].trim().to_string();
-            config.default_dir = PathBuf::from(path_str);
+            app.config.username = app.config_model.username_input.lines()[0]
+                .trim()
+                .to_string();
+            let path_str = app.config_model.path_input.lines()[0].trim().to_string();
+            app.config.default_dir = PathBuf::from(path_str);
 
-            let _ = config.save();
-            *state = AppState::Navigating;
+            let _ = app.config.save();
+            app.state = AppState::Navigating;
         }
-        ConfigMsg::Cancel => *state = AppState::Navigating,
+        ConfigMsg::Cancel => app.state = AppState::Navigating,
         ConfigMsg::UpdateInput(ev) => {
-            match model.active_field {
-                ConfigField::Username => model.username_input.input(ev),
-                ConfigField::DefaultPath => model.path_input.input(ev),
+            match app.config_model.active_field {
+                ConfigField::Username => app.config_model.username_input.input(ev),
+                ConfigField::DefaultPath => app.config_model.path_input.input(ev),
             };
         }
     }

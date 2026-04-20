@@ -55,7 +55,7 @@ impl NavModel {
 
     pub fn load_directory(&mut self) {
         self.items.clear();
-        self.items.push(".. (Up)".to_string());
+        self.items.push(".. (Subir)".to_string());
 
         if let Ok(entries) = fs::read_dir(&self.current_dir) {
             let mut dirs: Vec<String> = entries
@@ -108,7 +108,8 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
     let list = List::new(items)
         .block(
             Block::default()
-                .title(format!(" Navigating: {} ", model.current_dir.display()))
+                // "Navigating" -> "Navegando" o "Directorio"
+                .title(format!(" Navegando: {} ", model.current_dir.display()))
                 .borders(Borders::ALL),
         )
         .highlight_style(
@@ -130,7 +131,7 @@ pub fn update(app: &mut App, msg: NavMsg) {
             if let Some(i) = app.navigation_state.list_state.selected() {
                 let selected = app.navigation_state.items[i].clone();
 
-                if selected == ".. (Up)" {
+                if selected == ".. (Subir)" {
                     app.navigation_state.current_dir.pop();
                     app.navigation_state.load_directory();
                 } else {
@@ -148,7 +149,7 @@ pub fn update(app: &mut App, msg: NavMsg) {
 
                 // El usuario puede seleccionar nuestra meta-carpeta. En ese caso, lo mandamos de vuelta pa arriba como
                 // si fuera un MoveInto.
-                if selected == ".. (Up)" {
+                if selected == ".. (Subir)" {
                     app.navigation_state.current_dir.pop();
                     app.navigation_state.load_directory();
                 } else {
