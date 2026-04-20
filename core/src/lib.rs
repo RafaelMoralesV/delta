@@ -2,14 +2,14 @@ use anyhow::anyhow;
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
 use regex::Regex;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 
 pub struct BumpMetadata {
     pub version: String,
     pub author: String,
     pub object: String,
-    pub date: NaiveDate, // e.g., 2026-04-06
+    pub date: NaiveDate,
     pub description: String,
 }
 
@@ -95,7 +95,7 @@ fn bump_csproj(path: &PathBuf, new_version: &str) -> Result<()> {
     Ok(())
 }
 
-fn find_csproj_files(base_path: &PathBuf) -> Result<Vec<PathBuf>> {
+fn find_csproj_files(_base_path: &Path) -> Result<Vec<PathBuf>> {
     // You would use the `walkdir` crate here in a real implementation
     // to recursively find all files ending in .csproj
     Ok(vec![])
@@ -143,7 +143,7 @@ pub struct ProjectVersions {
 }
 
 /// Attempts to read the current versions for a selected project directory
-pub fn get_current_versions(project_dir: &PathBuf, project_name: &str) -> ProjectVersions {
+pub fn get_current_versions(project_dir: &Path, project_name: &str) -> ProjectVersions {
     let web_path = project_dir
         .join(format!("web{}", project_name))
         .join("package.json");

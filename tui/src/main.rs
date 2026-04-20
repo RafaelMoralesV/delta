@@ -106,7 +106,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                         f.render_widget(Paragraph::new("B: Bump | Esc: Atrás"), chunks[1]);
                     }
                     AppState::Configuring => {
-                        screens::config::view(&mut app.config_model, f, chunks[0]);
+                        screens::config::view(&app.config_model, f, chunks[0]);
                         f.render_widget(
                             Paragraph::new("Enter: Guardar | Esc: Cancelar"),
                             chunks[1],
