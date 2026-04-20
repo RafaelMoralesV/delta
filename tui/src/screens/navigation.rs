@@ -19,6 +19,7 @@ pub enum NavMsg {
     MoveDown,
     Select,
     MoveInto,
+    MoveOut,
     ToConfig,
 }
 
@@ -29,17 +30,20 @@ impl From<NavMsg> for Message {
 }
 
 pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
-    match key.code {
-        KeyCode::Up => Some(NavMsg::MoveUp.into()),
-        KeyCode::Down => Some(NavMsg::MoveDown.into()),
-        KeyCode::Enter => Some(NavMsg::Select.into()),
-        KeyCode::Char('c') => Some(NavMsg::ToConfig.into()),
-        KeyCode::Char(' ') => Some(NavMsg::MoveInto.into()),
-        KeyCode::Char('k') => Some(NavMsg::MoveUp.into()),
-        KeyCode::Char('j') => Some(NavMsg::MoveDown.into()),
-        KeyCode::Esc => Some(Message::Quit),
-        _ => None,
-    }
+    let message = match key.code {
+        KeyCode::Up => NavMsg::MoveUp,
+        KeyCode::Down => NavMsg::MoveDown,
+        KeyCode::Enter => NavMsg::Select,
+        KeyCode::Backspace => NavMsg::MoveOut,
+        KeyCode::Char('c') => NavMsg::ToConfig,
+        KeyCode::Char(' ') => NavMsg::MoveInto,
+        KeyCode::Char('k') => NavMsg::MoveUp,
+        KeyCode::Char('j') => NavMsg::MoveDown,
+        KeyCode::Esc => return Some(Message::Quit),
+        _ => return None,
+    };
+
+    Some(message.into())
 }
 
 impl NavModel {
@@ -127,6 +131,10 @@ pub fn update(app: &mut App, msg: NavMsg) {
         NavMsg::ToConfig => app.state = AppState::Configuring,
         NavMsg::MoveUp => app.navigation_state.previous(),
         NavMsg::MoveDown => app.navigation_state.next(),
+        NavMsg::MoveOut => {
+            app.navigation_state.current_dir.pop();
+            app.navigation_state.load_directory();
+        }
         NavMsg::MoveInto => {
             if let Some(i) = app.navigation_state.list_state.selected() {
                 let selected = app.navigation_state.items[i].clone();
