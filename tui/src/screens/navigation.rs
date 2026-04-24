@@ -1,7 +1,8 @@
 use crate::{App, AppState, Message, config::AppConfig, screens::project_view::ProjectModel};
+use fuzzy_matcher::FuzzyMatcher;
 use ratatui::{
     Frame,
-    crossterm::event::{self, KeyCode},
+    crossterm::event::{self, KeyCode, KeyModifiers},
     layout::Rect,
     style::Style,
     widgets::{List, ListItem, ListState},
@@ -10,8 +11,11 @@ use std::{fs, path::PathBuf};
 
 pub struct NavModel {
     pub current_dir: PathBuf,
-    pub items: Vec<String>,
+    pub items: Vec<String>,          // Full list
+    pub filtered_items: Vec<String>, // Visible list based on search
     pub list_state: ListState,
+    pub search_query: String, // The current input
+    pub is_searching: bool,   // Mode toggle
 }
 
 pub enum NavMsg {
@@ -21,6 +25,9 @@ pub enum NavMsg {
     MoveInto,
     MoveOut,
     ToConfig,
+    StartSearch,
+    UpdateSearch(String),
+    EndSearch(bool), // true to apply, false to cancel
 }
 
 impl From<NavMsg> for Message {
@@ -29,7 +36,29 @@ impl From<NavMsg> for Message {
     }
 }
 
-pub fn handle_key_event(key: event::KeyEvent) -> Option<Message> {
+pub fn handle_key_event(key: event::KeyEvent, state: &NavModel) -> Option<Message> {
+    let is_searching = state.is_searching;
+
+    // 1. Handle Global Mode Toggles
+    if !is_searching {
+        if (key.code == KeyCode::Char('f') && key.modifiers.contains(KeyModifiers::CONTROL))
+            || key.code == KeyCode::Char('/')
+        {
+            return Some(NavMsg::StartSearch.into());
+        }
+    }
+
+    // 2. Handle Search Mode Input
+    if is_searching {
+        return match key.code {
+            KeyCode::Enter => Some(NavMsg::EndSearch(true).into()),
+            KeyCode::Esc => Some(NavMsg::EndSearch(false).into()),
+            KeyCode::Backspace => Some(NavMsg::UpdateSearch("BACKSPACE".to_string()).into()),
+            KeyCode::Char(c) => Some(NavMsg::UpdateSearch(c.to_string()).into()),
+            _ => None,
+        };
+    }
+
     let message = match key.code {
         KeyCode::Up => NavMsg::MoveUp,
         KeyCode::Down => NavMsg::MoveDown,
@@ -52,6 +81,9 @@ impl NavModel {
             current_dir: path,
             items: vec![],
             list_state: ListState::default(),
+            filtered_items: vec![],
+            is_searching: false,
+            search_query: String::new(),
         };
         model.load_directory();
         model
@@ -68,7 +100,8 @@ impl NavModel {
                 .map(|e| e.file_name().to_string_lossy().to_string())
                 .collect();
             dirs.sort();
-            self.items.extend(dirs);
+            self.items.extend(dirs.clone());
+            self.filtered_items.extend(dirs);
         }
         self.list_state.select(Some(0));
     }
@@ -100,37 +133,56 @@ impl NavModel {
         };
         self.list_state.select(Some(i));
     }
+
+    pub fn apply_filter(&mut self) {
+        if self.search_query.is_empty() {
+            self.filtered_items = self.items.clone();
+        } else {
+            let query = self.search_query.to_lowercase();
+            let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+            self.filtered_items = self
+                .items
+                .iter()
+                .filter(|item| matcher.fuzzy_match(item, &query).is_some())
+                .cloned()
+                .collect();
+        }
+        // Reset selection to the top after filtering
+        self.list_state.select(Some(0));
+    }
 }
 
 pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
-    let p = &cfg.palette; // Local reference for brevity
-    let title = format!("Explorando: {}", model.current_dir.to_string_lossy());
+    let p = &cfg.palette;
+    let title = format!("Navegando: {}", model.current_dir.to_string_lossy());
 
-    crate::components::page::draw_page(
-        f,
-        area,
-        &title,
-        "↑/↓: Nav | Enter: Open | C: Config",
-        cfg,
-        |f, chunk| {
-            let items: Vec<ListItem> = model
-                .items
-                .iter()
-                .map(|i| {
-                    ListItem::new(i.as_str()).style(Style::default().fg(p.get_color(&p.base05))) // Standard foreground
-                })
-                .collect();
+    // Change footer text based on mode
+    let help_text = if model.is_searching {
+        format!(
+            "SEARCHING: {} | Enter: Confirm | Esc: Cancel",
+            model.search_query
+        )
+    } else {
+        "↑/↓: Nav | /: Search | Enter: Open".to_string()
+    };
 
-            let list = List::new(items).highlight_symbol(">> ").highlight_style(
-                Style::default()
-                    .bg(p.get_color(&p.base02)) // Selection background
-                    .fg(p.get_color(&p.base0B)) // Selected text/symbol color (Green)
-                    .add_modifier(ratatui::style::Modifier::BOLD),
-            );
+    crate::components::page::draw_page(f, area, &title, &help_text, cfg, |f, chunk| {
+        // IMPORTANT: Render filtered_items, not items
+        let items: Vec<ListItem> = model
+            .filtered_items
+            .iter()
+            .map(|i| ListItem::new(i.as_str()).style(Style::default().fg(p.get_color(&p.base05))))
+            .collect();
 
-            f.render_stateful_widget(list, chunk, &mut model.list_state);
-        },
-    );
+        let list = List::new(items).highlight_symbol(">> ").highlight_style(
+            Style::default()
+                .bg(p.get_color(&p.base02)) // Selection background
+                .fg(p.get_color(&p.base0B)) // Selected text/symbol color (Green)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        );
+
+        f.render_stateful_widget(list, chunk, &mut model.list_state);
+    });
 }
 
 pub fn update(app: &mut App, msg: NavMsg) {
@@ -172,6 +224,25 @@ pub fn update(app: &mut App, msg: NavMsg) {
                     let versions = core::get_current_versions(&new_path, &selected);
                     app.state = AppState::ViewingProject(ProjectModel::new(selected, versions));
                 }
+            }
+        }
+        NavMsg::StartSearch => {
+            app.navigation_state.is_searching = true;
+            app.navigation_state.search_query.clear();
+        }
+        NavMsg::UpdateSearch(input) => {
+            if input == "BACKSPACE" {
+                app.navigation_state.search_query.pop();
+            } else {
+                app.navigation_state.search_query.push_str(&input);
+            }
+            app.navigation_state.apply_filter();
+        }
+        NavMsg::EndSearch(apply) => {
+            app.navigation_state.is_searching = false;
+            if !apply {
+                app.navigation_state.search_query.clear();
+                app.navigation_state.apply_filter();
             }
         }
     }
