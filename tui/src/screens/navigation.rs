@@ -1,8 +1,9 @@
-use crate::{App, AppState, Message, screens::project_view::ProjectModel};
+use crate::{App, AppState, Message, config::AppConfig, screens::project_view::ProjectModel};
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
     layout::Rect,
+    style::Style,
     widgets::{List, ListItem, ListState},
 };
 use std::{fs, path::PathBuf};
@@ -76,7 +77,7 @@ impl NavModel {
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
-                    0
+                    self.items.len() - 1
                 } else {
                     i + 1
                 }
@@ -90,7 +91,7 @@ impl NavModel {
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.items.len() - 1
+                    i
                 } else {
                     i - 1
                 }
@@ -101,20 +102,34 @@ impl NavModel {
     }
 }
 
-pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
+pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
+    let p = &cfg.palette; // Local reference for brevity
+    let title = format!(
+        "Explorando: {}",
+        model.current_dir.to_string_lossy().to_string()
+    );
+
     crate::components::page::draw_page(
         f,
         area,
-        "Explorer",
+        &title,
         "↑/↓: Nav | Enter: Open | C: Config",
+        cfg,
         |f, chunk| {
             let items: Vec<ListItem> = model
                 .items
                 .iter()
-                .map(|i| ListItem::new(i.as_str()))
+                .map(|i| {
+                    ListItem::new(i.as_str()).style(Style::default().fg(p.get_color(&p.base05))) // Standard foreground
+                })
                 .collect();
 
-            let list = List::new(items).highlight_symbol(">> ");
+            let list = List::new(items).highlight_symbol(">> ").highlight_style(
+                Style::default()
+                    .bg(p.get_color(&p.base02)) // Selection background
+                    .fg(p.get_color(&p.base0B)) // Selected text/symbol color (Green)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            );
 
             f.render_stateful_widget(list, chunk, &mut model.list_state);
         },

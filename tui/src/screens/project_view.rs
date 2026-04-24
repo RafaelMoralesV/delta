@@ -2,11 +2,12 @@ use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style},
-    widgets::{Block, Borders, Clear, Paragraph},
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
 
-use crate::{App, AppState, Message};
+use crate::{App, AppState, Message, config::AppConfig};
 
 pub enum Selection {
     Bl = 0,
@@ -77,12 +78,15 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
     Some(msg.into())
 }
 
-pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
+pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
+    let p = &cfg.palette;
+
     crate::components::page::draw_page(
         f,
         area,
         "Project Detail",
         "B: Bump | Esc: Atrás",
+        cfg,
         |f, chunk| {
             let chunks = Layout::vertical([
                 Constraint::Length(3),
@@ -91,68 +95,85 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
             ])
             .split(chunk);
 
-            let get_next = |v: &Option<core::AppVersion>| {
-                v.as_ref()
-                    .map(|v| v.bumped().to_string())
-                    .unwrap_or_else(|| "-".into())
-            };
+            // Helper for the "next version" string with styling
+            let render_version_line =
+                |label: &str, current: &Option<core::AppVersion>, is_selected: bool| {
+                    let current_str = current.as_ref().map_or("-".into(), |v| v.to_string());
+                    let next_str = current
+                        .as_ref()
+                        .map(|v| v.bumped().to_string())
+                        .unwrap_or_else(|| "-".into());
+
+                    // Base16 logic: base05 (text) -> base0B (green/success for the new version)
+                    let content = vec![
+                        Span::raw(format!(" {} Version: ", label)),
+                        Span::styled(current_str, Style::default().fg(p.get_color(&p.base05))),
+                        Span::raw(" -> "),
+                        Span::styled(
+                            next_str,
+                            Style::default()
+                                .fg(p.get_color(&p.base0B))
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ];
+
+                    let style = if is_selected {
+                        Style::default().bg(p.get_color(&p.base02)) // Selection highlight
+                    } else {
+                        Style::default().fg(p.get_color(&p.base04)) // Dimmer text for inactive
+                    };
+
+                    Paragraph::new(Line::from(content)).style(style)
+                };
 
             // Render Web Info
-            let web_style = if matches!(model.selected, Selection::Web) {
-                Style::default().bg(Color::DarkGray)
-            } else {
-                Style::default()
-            };
-            let web_v = model
-                .versions
-                .web
-                .as_ref()
-                .map_or("-".into(), |v| v.to_string());
             f.render_widget(
-                Paragraph::new(format!(
-                    " Web Version: {} -> {}",
-                    web_v,
-                    get_next(&model.versions.web)
-                ))
-                .style(web_style)
-                .block(Block::default().borders(Borders::LEFT | Borders::RIGHT | Borders::TOP)),
+                render_version_line(
+                    "Web",
+                    &model.versions.web,
+                    matches!(model.selected, Selection::Web),
+                )
+                .block(
+                    Block::default()
+                        .borders(Borders::LEFT | Borders::RIGHT | Borders::TOP)
+                        .border_style(Style::default().fg(p.get_color(&p.base03))),
+                ),
                 chunks[0],
             );
 
             // Render BL Info
-            let bl_style = if matches!(model.selected, Selection::Bl) {
-                Style::default().bg(Color::DarkGray)
-            } else {
-                Style::default()
-            };
-            let bl_v = model
-                .versions
-                .bl
-                .as_ref()
-                .map_or("-".into(), |v| v.to_string());
             f.render_widget(
-                Paragraph::new(format!(
-                    " BL Version:  {} -> {}",
-                    bl_v,
-                    get_next(&model.versions.bl)
-                ))
-                .style(bl_style)
-                .block(Block::default().borders(Borders::ALL)),
+                render_version_line(
+                    "BL",
+                    &model.versions.bl,
+                    matches!(model.selected, Selection::Bl),
+                )
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(p.get_color(&p.base03))),
+                ),
                 chunks[1],
             );
         },
     );
 
-    // Render Modal on top of everything if active
+    // --- Modal Logic ---
     if model.is_naming_bump {
         let popup_area = centered_rect(60, 20, area);
-        f.render_widget(Clear, popup_area);
+        f.render_widget(ratatui::widgets::Clear, popup_area);
+
         let block = Block::default()
             .title(" Bump Message ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            // base09 (Orange) is great for "Action Required" modals
+            .border_style(Style::default().fg(p.get_color(&p.base09)))
+            .style(Style::default().bg(p.get_color(&p.base01))); // Slightly offset from main bg
+
         f.render_widget(
-            Paragraph::new(model.bump_message.as_str()).block(block),
+            Paragraph::new(model.bump_message.as_str())
+                .block(block)
+                .style(Style::default().fg(p.get_color(&p.base05))),
             popup_area,
         );
     }

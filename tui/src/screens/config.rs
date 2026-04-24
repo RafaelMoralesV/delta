@@ -4,12 +4,15 @@ use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     widgets::{Block, Borders},
 };
 use ratatui_textarea::TextArea;
 
-use crate::{App, AppState, Message};
+use crate::{
+    App, AppState, Message,
+    config::{AppConfig, Palette},
+};
 
 #[derive(PartialEq)]
 pub enum ConfigField {
@@ -60,25 +63,37 @@ impl<'a> ConfigModel<'a> {
         }
     }
 
-    fn create_block(&self, field: ConfigField, title: &'static str) -> Block<'a> {
+    fn create_block(&self, field: ConfigField, title: &'static str, p: &Palette) -> Block<'a> {
         let is_active = self.active_field == field;
+
+        let border_color = if is_active {
+            p.get_color(&p.base0A) // Use Yellow/Accent for active field
+        } else {
+            p.get_color(&p.base03) // Use "Invisibles/Comments" grey for inactive
+        };
+
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(if is_active {
-                Color::Yellow
-            } else {
-                Color::White
-            }))
+            .border_style(Style::default().fg(border_color))
             .title(format!(" {} ", title))
+            // Optional: subtle background for the active field
+            .style(Style::default().bg(if is_active {
+                p.get_color(&p.base01)
+            } else {
+                p.get_color(&p.base00)
+            }))
     }
 }
 
-pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
+pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
+    let p = &cfg.palette;
+
     crate::components::page::draw_page(
         f,
         area,
         "Configuration",
         "Tab: Cambiar Campo | Enter: Guardar | Esc: Cancelar",
+        cfg,
         |f, chunk| {
             let layout = Layout::vertical([
                 Constraint::Length(3), // Usuario
@@ -87,13 +102,33 @@ pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
             ])
             .split(chunk);
 
+            // Style Username Input
             let mut username_input = model.username_input.clone();
-            username_input
-                .set_block(model.create_block(ConfigField::Username, "Nombre de Usuario"));
+            username_input.set_block(model.create_block(
+                ConfigField::Username,
+                "Nombre de Usuario",
+                p,
+            ));
+            username_input.set_cursor_style(
+                Style::default()
+                    .bg(p.get_color(&p.base05))
+                    .fg(p.get_color(&p.base00)),
+            );
+            username_input.set_style(Style::default().fg(p.get_color(&p.base05)));
 
+            // Style Path Input
             let mut path_input = model.path_input.clone();
-            path_input
-                .set_block(model.create_block(ConfigField::DefaultPath, "Ruta Base de Proyectos"));
+            path_input.set_block(model.create_block(
+                ConfigField::DefaultPath,
+                "Ruta Base de Proyectos",
+                p,
+            ));
+            path_input.set_cursor_style(
+                Style::default()
+                    .bg(p.get_color(&p.base05))
+                    .fg(p.get_color(&p.base00)),
+            );
+            path_input.set_style(Style::default().fg(p.get_color(&p.base05)));
 
             f.render_widget(&username_input, layout[0]);
             f.render_widget(&path_input, layout[1]);
