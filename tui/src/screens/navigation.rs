@@ -104,10 +104,7 @@ impl NavModel {
 
 pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
     let p = &cfg.palette; // Local reference for brevity
-    let title = format!(
-        "Explorando: {}",
-        model.current_dir.to_string_lossy().to_string()
-    );
+    let title = format!("Explorando: {}", model.current_dir.to_string_lossy());
 
     crate::components::page::draw_page(
         f,
