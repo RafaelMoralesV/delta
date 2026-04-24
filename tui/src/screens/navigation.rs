@@ -2,9 +2,8 @@ use crate::{App, AppState, Message, screens::project_view::ProjectModel};
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    layout::Rect,
+    widgets::{List, ListItem, ListState},
 };
 use std::{fs, path::PathBuf};
 
@@ -103,41 +102,23 @@ impl NavModel {
 }
 
 pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
-    // 1. Split the area internally
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),    // Main content
-            Constraint::Length(1), // Footer (adjusted to 1 for a cleaner look)
-        ])
-        .split(area);
+    crate::components::page::draw_page(
+        f,
+        area,
+        "Explorer",
+        "↑/↓: Nav | Enter: Open | C: Config",
+        |f, chunk| {
+            let items: Vec<ListItem> = model
+                .items
+                .iter()
+                .map(|i| ListItem::new(i.as_str()))
+                .collect();
 
-    // 2. Render Main Content (The List)
-    let items: Vec<ListItem> = model
-        .items
-        .iter()
-        .map(|i| ListItem::new(i.as_str()))
-        .collect();
+            let list = List::new(items).highlight_symbol(">> ");
 
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .title(format!(" Navegando: {} ", model.current_dir.display()))
-                .borders(Borders::ALL),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
-
-    f.render_stateful_widget(list, chunks[0], &mut model.list_state);
-
-    // 3. Render Footer
-    let footer = Paragraph::new("↑/↓: Navegar | Enter: Abrir | C: Config | Esc: Salir")
-        .style(Style::default().fg(Color::Gray));
-    f.render_widget(footer, chunks[1]);
+            f.render_stateful_widget(list, chunk, &mut model.list_state);
+        },
+    );
 }
 
 pub fn update(app: &mut App, msg: NavMsg) {

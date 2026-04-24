@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Style},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders},
 };
 use ratatui_textarea::TextArea;
 
@@ -74,31 +74,30 @@ impl<'a> ConfigModel<'a> {
 }
 
 pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
-    // Split into Main Inputs and Footer
-    let layout = Layout::vertical([
-        Constraint::Length(3), // Usuario
-        Constraint::Length(3), // Ruta
-        Constraint::Min(0),    // Spacer
-        Constraint::Length(1), // Footer (moved from top to bottom)
-    ])
-    .split(area);
+    crate::components::page::draw_page(
+        f,
+        area,
+        "Configuration",
+        "Tab: Cambiar Campo | Enter: Guardar | Esc: Cancelar",
+        |f, chunk| {
+            let layout = Layout::vertical([
+                Constraint::Length(3), // Usuario
+                Constraint::Length(3), // Ruta
+                Constraint::Min(0),
+            ])
+            .split(chunk);
 
-    // Input rendering
-    let mut username_input = model.username_input.clone();
-    username_input.set_block(model.create_block(ConfigField::Username, "Nombre de Usuario"));
+            let mut username_input = model.username_input.clone();
+            username_input
+                .set_block(model.create_block(ConfigField::Username, "Nombre de Usuario"));
 
-    let mut path_input = model.path_input.clone();
-    path_input.set_block(model.create_block(ConfigField::DefaultPath, "Ruta Base de Proyectos"));
+            let mut path_input = model.path_input.clone();
+            path_input
+                .set_block(model.create_block(ConfigField::DefaultPath, "Ruta Base de Proyectos"));
 
-    f.render_widget(&username_input, layout[0]);
-    f.render_widget(&path_input, layout[1]);
-
-    // Footer rendering
-    f.render_widget(
-        Paragraph::new("Tab: Cambiar Campo | Enter: Guardar | Esc: Cancelar")
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::Cyan)), // Distinct color for config actions
-        layout[3],
+            f.render_widget(&username_input, layout[0]);
+            f.render_widget(&path_input, layout[1]);
+        },
     );
 }
 

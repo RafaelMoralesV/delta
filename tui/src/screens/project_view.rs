@@ -78,77 +78,72 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
 }
 
 pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
-    let main_layout = Layout::vertical([
-        Constraint::Min(0),    // Everything else
-        Constraint::Length(1), // Footer
-    ])
-    .split(area);
+    crate::components::page::draw_page(
+        f,
+        area,
+        "Project Detail",
+        "B: Bump | Esc: Atrás",
+        |f, chunk| {
+            let chunks = Layout::vertical([
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Min(0),
+            ])
+            .split(chunk);
 
-    let content_area = main_layout[0];
-    let footer_area = main_layout[1];
+            let get_next = |v: &Option<core::AppVersion>| {
+                v.as_ref()
+                    .map(|v| v.bumped().to_string())
+                    .unwrap_or_else(|| "-".into())
+            };
 
-    // 2. Your existing internal layout logic (now using content_area)
-    let chunks = Layout::vertical([
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Min(0),
-    ])
-    .split(content_area);
+            // Render Web Info
+            let web_style = if matches!(model.selected, Selection::Web) {
+                Style::default().bg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+            let web_v = model
+                .versions
+                .web
+                .as_ref()
+                .map_or("-".into(), |v| v.to_string());
+            f.render_widget(
+                Paragraph::new(format!(
+                    " Web Version: {} -> {}",
+                    web_v,
+                    get_next(&model.versions.web)
+                ))
+                .style(web_style)
+                .block(Block::default().borders(Borders::LEFT | Borders::RIGHT | Borders::TOP)),
+                chunks[0],
+            );
 
-    // Styling for selection
-    let web_style = if matches!(model.selected, Selection::Web) {
-        Style::default().bg(Color::DarkGray)
-    } else {
-        Style::default()
-    };
-
-    let bl_style = if matches!(model.selected, Selection::Bl) {
-        Style::default().bg(Color::DarkGray)
-    } else {
-        Style::default()
-    };
-
-    let get_next = |v: &Option<core::AppVersion>| {
-        v.as_ref()
-            .map(|v| v.bumped().to_string())
-            .unwrap_or_else(|| "-".into())
-    };
-    let web_next = get_next(&model.versions.web);
-    let bl_next = get_next(&model.versions.bl);
-
-    // Render Web Info
-    let web_v = model
-        .versions
-        .web
-        .as_ref()
-        .map_or("-".to_string(), |v| v.to_string());
-
-    f.render_widget(
-        Paragraph::new(format!(" Web Version: {} -> {}", web_v, web_next))
-            .style(web_style)
-            .block(Block::default().borders(Borders::LEFT | Borders::RIGHT)),
-        chunks[0],
+            // Render BL Info
+            let bl_style = if matches!(model.selected, Selection::Bl) {
+                Style::default().bg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+            let bl_v = model
+                .versions
+                .bl
+                .as_ref()
+                .map_or("-".into(), |v| v.to_string());
+            f.render_widget(
+                Paragraph::new(format!(
+                    " BL Version:  {} -> {}",
+                    bl_v,
+                    get_next(&model.versions.bl)
+                ))
+                .style(bl_style)
+                .block(Block::default().borders(Borders::ALL)),
+                chunks[1],
+            );
+        },
     );
 
-    // Render BL Info
-    let bl_v = model
-        .versions
-        .bl
-        .as_ref()
-        .map_or("-".to_string(), |v| v.to_string());
-    f.render_widget(
-        Paragraph::new(format!(" BL Version:  {} -> {}", bl_v, bl_next))
-            .style(bl_style)
-            .block(Block::default().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)),
-        chunks[1],
-    );
-
-    f.render_widget(
-        Paragraph::new("B: Bump | Esc: Atrás").style(Style::default().fg(Color::DarkGray)),
-        footer_area,
-    );
-
-    // --- MODAL LOGIC ---
+    // Render Modal on top of everything if active
     if model.is_naming_bump {
         let popup_area = centered_rect(60, 20, area);
         f.render_widget(Clear, popup_area);
