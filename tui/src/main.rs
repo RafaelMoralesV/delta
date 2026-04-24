@@ -90,13 +90,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
 
                 match &mut app.state {
                     AppState::Navigating => {
-                        screens::navigation::view(&mut app.navigation_state, f, main_area);
+                        screens::navigation::view(
+                            &mut app.navigation_state,
+                            f,
+                            main_area,
+                            &app.config,
+                        );
                     }
                     AppState::ViewingProject(m) => {
-                        screens::project_view::view(m, f, main_area);
+                        screens::project_view::view(m, f, main_area, &app.config);
                     }
                     AppState::Configuring => {
-                        screens::config::view(&app.config_model, f, main_area);
+                        screens::config::view(&app.config_model, f, main_area, &app.config);
                     }
                 }
             })
