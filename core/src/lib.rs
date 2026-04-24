@@ -1,17 +1,10 @@
-use anyhow::anyhow;
-use anyhow::{Context, Result};
-use chrono::NaiveDate;
+use anyhow::Context;
+use anyhow::{Result, anyhow};
+use chrono::Local;
 use regex::Regex;
+use std::fmt;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{fmt, fs};
-
-pub struct BumpMetadata {
-    pub version: String,
-    pub author: String,
-    pub object: String,
-    pub date: NaiveDate,
-    pub description: String,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AppVersion {
@@ -21,91 +14,29 @@ pub struct AppVersion {
     pub build: u32,
 }
 
-pub enum ProjectType {
-    Web(PathBuf), // Path to web{{Project Name}}
-    Bl(PathBuf),  // Path to bl{{Project Name}}
-}
-
-impl BumpMetadata {
-    /// Formats the metadata into the markdown string required for README.md
-    pub fn to_markdown_entry(&self) -> String {
-        format!(
-            "## Version {}\n\n\
-            - Nombre: {}\n\
-            - Objeto: {}\n\
-            - Fecha: {}\n\
-            - Descripción: {}\n\n",
-            self.version,
-            self.author,
-            self.object,
-            self.date.format("%d/%m/%Y"),
-            self.description
-        )
+impl AppVersion {
+    pub fn bumped(&self) -> Self {
+        let mut next = *self;
+        next.patch += 1;
+        if next.patch >= 100 {
+            next.minor += 1;
+            next.patch = 0;
+        }
+        next
     }
 }
 
-pub fn bump_project(project: ProjectType, metadata: &BumpMetadata) -> Result<()> {
-    match project {
-        ProjectType::Web(path) => {
-            prepend_readme(&path.join("README.md"), metadata)?;
-            bump_package_json(&path.join("package.json"), &metadata.version)?;
-        }
-        ProjectType::Bl(path) => {
-            prepend_readme(&path.join("README.md"), metadata)?;
-            // Find all .csproj files in the bl directory tree
-            let csproj_files = find_csproj_files(&path)?;
-            for csproj in csproj_files {
-                bump_csproj(&csproj, &metadata.version)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn prepend_readme(path: &PathBuf, metadata: &BumpMetadata) -> Result<()> {
-    let existing_content = fs::read_to_string(path).unwrap_or_default();
-    let new_entry = metadata.to_markdown_entry();
-
-    // Simplest approach: just slap it at the top.
-    // If you have a `# Title`, you'd use regex to insert *after* the title.
-    let updated_content = format!("{}{}", new_entry, existing_content);
-    fs::write(path, updated_content)?;
-    Ok(())
-}
-
-fn bump_package_json(path: &PathBuf, new_version: &str) -> Result<()> {
-    let content = fs::read_to_string(path).context("Failed to read package.json")?;
-
-    // Using Regex to preserve file formatting and potential pseudo-JSON comments
-    let re = regex::Regex::new(r#"("version"\s*:\s*)"[^"]+""#).unwrap();
-    let updated = re.replace(&content, format!(r#"${{1}}"{new_version}""#));
-
-    fs::write(path, updated.as_bytes())?;
-    Ok(())
-}
-
-fn bump_csproj(path: &PathBuf, new_version: &str) -> Result<()> {
-    let content = fs::read_to_string(path).context("Failed to read .csproj")?;
-
-    // Regex targets the <Version> tag
-    let re = regex::Regex::new(r"(?i)<Version>.*?</Version>").unwrap();
-    let updated = re.replace(&content, format!("<Version>{}</Version>", new_version));
-
-    fs::write(path, updated.as_bytes())?;
-    Ok(())
-}
-
-fn find_csproj_files(_base_path: &Path) -> Result<Vec<PathBuf>> {
-    // You would use the `walkdir` crate here in a real implementation
-    // to recursively find all files ending in .csproj
-    Ok(vec![])
+pub struct ProjectVersions {
+    pub web: Option<AppVersion>,
+    pub bl: Option<AppVersion>,
 }
 
 impl AppVersion {
+    /// Parses a version string in X.Y.Z.W format
     pub fn parse(s: &str) -> Result<Self> {
         let parts: Vec<&str> = s.split('.').collect();
         if parts.len() != 4 {
-            return Err(anyhow!("Version must follow X.Y.Z.W format"));
+            return Err(anyhow!("Version must follow X.Y.Z.W format (found: {})", s));
         }
         Ok(Self {
             major: parts[0].parse()?,
@@ -113,17 +44,6 @@ impl AppVersion {
             patch: parts[2].parse()?,
             build: parts[3].parse()?,
         })
-    }
-
-    pub fn bumped(&self) -> Self {
-        let mut next = *self;
-        if next.patch >= 99 {
-            next.minor += 1;
-            next.patch = 0;
-        } else {
-            next.patch += 1;
-        }
-        next
     }
 }
 
@@ -137,20 +57,17 @@ impl fmt::Display for AppVersion {
     }
 }
 
-pub struct ProjectVersions {
-    pub web: Option<AppVersion>,
-    pub bl: Option<AppVersion>,
-}
-
 /// Attempts to read the current versions for a selected project directory
 pub fn get_current_versions(project_dir: &Path, project_name: &str) -> ProjectVersions {
     let web_path = project_dir
         .join(format!("web{}", project_name))
         .join("package.json");
+
+    // Note: Adjusted to match your specific bl structure logic
     let bl_path = project_dir
         .join(format!("bl{}", project_name))
         .join(format!("bl{}", project_name))
-        .join(format!("bl{}.csproj", project_name)); // Checks the base csproj as source of truth
+        .join(format!("bl{}.csproj", project_name));
 
     ProjectVersions {
         web: extract_version_from_package_json(&web_path),
@@ -160,9 +77,9 @@ pub fn get_current_versions(project_dir: &Path, project_name: &str) -> ProjectVe
 
 fn extract_version_from_package_json(path: &PathBuf) -> Option<AppVersion> {
     let content = fs::read_to_string(path).ok()?;
-    let re = Regex::new(r#"("version"\s*:\s*)"([^"]+)""#).ok()?;
+    let re = Regex::new(r#""version"\s*:\s*"([^"]+)""#).ok()?;
     let caps = re.captures(&content)?;
-    AppVersion::parse(caps.get(2)?.as_str()).ok()
+    AppVersion::parse(caps.get(1)?.as_str()).ok()
 }
 
 fn extract_version_from_csproj(path: &PathBuf) -> Option<AppVersion> {
@@ -170,4 +87,121 @@ fn extract_version_from_csproj(path: &PathBuf) -> Option<AppVersion> {
     let re = Regex::new(r"(?i)<Version>(.*?)</Version>").ok()?;
     let caps = re.captures(&content)?;
     AppVersion::parse(caps.get(1)?.as_str()).ok()
+}
+
+#[derive(Debug)]
+pub struct BumpInstructions {
+    pub author: String,
+    pub project_dir: PathBuf,
+    pub project_name: String,
+    pub description: String,
+}
+
+pub fn execute_bump(
+    instructions: BumpInstructions,
+    current_version: AppVersion,
+    is_web: bool,
+) -> Result<()> {
+    let target_version = current_version.bumped();
+    let date_str = Local::now().format("%d/%m/%Y").to_string();
+
+    // Determine the "Objeto" name (e.g., "webProjectName" or "blProjectName")
+    let prefix = if is_web { "web" } else { "bl" };
+    let object_name = format!("{}{}", prefix, instructions.project_name);
+    let project_path = instructions
+        .project_dir
+        .join(&instructions.project_name)
+        .join(&object_name);
+
+    update_readme(
+        &project_path.join("README.md"),
+        &target_version.to_string(),
+        &instructions.author,
+        &object_name,
+        &date_str,
+        &instructions.description,
+    )?;
+
+    if is_web {
+        update_package_json(
+            &project_path.join("package.json"),
+            &target_version.to_string(),
+        )?;
+    } else {
+        let csproj_files = find_csproj_shallow(&project_path);
+        for path in csproj_files {
+            update_csproj(&path, &target_version.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn update_readme(
+    path: &Path,
+    ver: &str,
+    aut: &str,
+    obj: &str,
+    date: &str,
+    desc: &str,
+) -> Result<()> {
+    let entry = format!(
+        "## Version {}\n\n\
+        - Nombre: {}\n\
+        - Objeto: {}\n\
+        - Fecha: {}\n\
+        - Descripción: {}\n\n",
+        ver, aut, obj, date, desc
+    );
+
+    let existing = fs::read_to_string(path).unwrap_or_default();
+    fs::write(path, format!("{}{}", entry, existing))
+        .with_context(|| format!("Failed to update README at {:?}", path))
+}
+
+fn update_package_json(path: &Path, version: &str) -> Result<()> {
+    let content = fs::read_to_string(path)?;
+    let re = Regex::new(r#"("version"\s*:\s*)"[^"]+""#).unwrap();
+    let updated = re.replace(&content, format!(r#"$1"{version}""#));
+    fs::write(path, updated.as_bytes())?;
+    Ok(())
+}
+
+fn update_csproj(path: &Path, version: &str) -> Result<()> {
+    let content = fs::read_to_string(path)?;
+    let re = Regex::new(r"(?i)<Version>.*?</Version>").unwrap();
+    let updated = re.replace(&content, format!("<Version>{}</Version>", version));
+    fs::write(path, updated.as_bytes())?;
+    Ok(())
+}
+
+fn find_csproj_shallow(base_path: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+
+    let Ok(entries) = fs::read_dir(base_path) else {
+        return files;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Check inside immediate subdirectories (e.g., blProjectAPI/)
+            if let Ok(sub_entries) = fs::read_dir(&path) {
+                for sub_entry in sub_entries.flatten() {
+                    let sub_path = sub_entry.path();
+                    if is_csproj(&sub_path) {
+                        files.push(sub_path);
+                    }
+                }
+            }
+        } else if is_csproj(&path) {
+            files.push(path);
+        }
+    }
+    files
+}
+
+fn is_csproj(path: &Path) -> bool {
+    path.extension().and_then(|s| s.to_str()) == Some("csproj")
 }

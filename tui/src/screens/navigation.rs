@@ -163,10 +163,7 @@ pub fn update(app: &mut App, msg: NavMsg) {
                 } else {
                     let new_path = app.navigation_state.current_dir.join(&selected);
                     let versions = core::get_current_versions(&new_path, &selected);
-                    app.state = AppState::ViewingProject(ProjectModel::new(
-                        new_path.to_string_lossy().to_string(),
-                        versions,
-                    ));
+                    app.state = AppState::ViewingProject(ProjectModel::new(selected, versions));
                 }
             }
         }

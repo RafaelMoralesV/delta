@@ -38,7 +38,6 @@ pub enum ProjectMsg {
     MoveUp,
     MoveDown,
     PrepareBumpSingle,
-    PrepareBumpBoth,
     UpdateInput(String),
     ConfirmBump,
     CancelBump,
@@ -72,7 +71,6 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
         KeyCode::Char('j') | KeyCode::Down => ProjectMsg::MoveDown,
         KeyCode::Char('k') | KeyCode::Up => ProjectMsg::MoveUp,
         KeyCode::Char('b') => ProjectMsg::PrepareBumpSingle,
-        KeyCode::Char('B') => ProjectMsg::PrepareBumpBoth,
         _ => return None,
     };
 
@@ -102,14 +100,23 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
         Style::default()
     };
 
+    let get_next = |v: &Option<core::AppVersion>| {
+        v.as_ref()
+            .map(|v| v.bumped().to_string())
+            .unwrap_or_else(|| "-".into())
+    };
+    let web_next = get_next(&model.versions.web);
+    let bl_next = get_next(&model.versions.bl);
+
     // Render Web Info
     let web_v = model
         .versions
         .web
         .as_ref()
         .map_or("-".to_string(), |v| v.to_string());
+
     f.render_widget(
-        Paragraph::new(format!(" Web Version: {} -> {}", web_v, "Next"))
+        Paragraph::new(format!(" Web Version: {} -> {}", web_v, web_next))
             .style(web_style)
             .block(Block::default().borders(Borders::LEFT | Borders::RIGHT)),
         chunks[0],
@@ -122,7 +129,7 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
         .as_ref()
         .map_or("-".to_string(), |v| v.to_string());
     f.render_widget(
-        Paragraph::new(format!(" BL Version:  {} -> {}", bl_v, "Next"))
+        Paragraph::new(format!(" BL Version:  {} -> {}", bl_v, bl_next))
             .style(bl_style)
             .block(Block::default().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)),
         chunks[1],
@@ -167,13 +174,37 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
         match msg {
             ProjectMsg::MoveUp => model.selected = Selection::Web,
             ProjectMsg::MoveDown => model.selected = Selection::Bl,
-            ProjectMsg::PrepareBumpSingle | ProjectMsg::PrepareBumpBoth => {
+            ProjectMsg::PrepareBumpSingle => {
                 model.is_naming_bump = true;
                 model.bump_message.clear();
             }
             ProjectMsg::UpdateInput(s) => model.bump_message = s,
             ProjectMsg::ConfirmBump => {
-                // Perform actual IO here using model.bump_message
+                let instructions = core::BumpInstructions {
+                    author: app.config.username.clone(),
+                    project_dir: app.navigation_state.current_dir.clone(),
+                    project_name: model.name.clone(),
+                    description: model.bump_message.clone(),
+                };
+
+                match model.selected {
+                    Selection::Web => {
+                        if let Some(current) = model.versions.web {
+                            let _ = core::execute_bump(instructions, current, true);
+                        }
+                    }
+                    Selection::Bl => {
+                        if let Some(current) = model.versions.bl {
+                            let _ = core::execute_bump(instructions, current, false);
+                        }
+                    }
+                }
+
+                // Refresh versions after bump so the UI stays in sync
+                model.versions = core::get_current_versions(
+                    &app.config.default_dir.join(&model.name),
+                    &model.name,
+                );
                 model.is_naming_bump = false;
             }
             ProjectMsg::CancelBump => model.is_naming_bump = false,
