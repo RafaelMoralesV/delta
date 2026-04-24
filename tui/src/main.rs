@@ -7,6 +7,8 @@ use crate::screens::navigation::NavModel;
 use crate::screens::project_view::ProjectModel;
 use crate::{config::AppConfig, screens::project_view::ProjectMsg};
 
+use ratatui::crossterm::ExecutableCommand;
+use ratatui::crossterm::event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags};
 use ratatui::{
     Terminal,
     backend::{Backend, CrosstermBackend},
@@ -59,6 +61,11 @@ impl App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // Necesario para soportar el backslash del teclado latino
+    let _ = std::io::stdout().execute(PushKeyboardEnhancementFlags(
+        KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+    ));
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;

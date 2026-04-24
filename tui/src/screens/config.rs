@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use ratatui::{
     Frame,
-    crossterm::event::{self, KeyCode},
+    crossterm::{
+        self,
+        event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    },
     layout::{Constraint, Layout, Rect},
     style::Style,
     widgets::{Block, Borders},
@@ -156,10 +159,22 @@ pub fn update(app: &mut App, msg: ConfigMsg) {
         }
         ConfigMsg::Cancel => app.state = AppState::Navigating,
         ConfigMsg::UpdateInput(ev) => {
-            match app.config_model.active_field {
-                ConfigField::Username => app.config_model.username_input.input(ev),
-                ConfigField::DefaultPath => app.config_model.path_input.input(ev),
+            let active_input = match app.config_model.active_field {
+                ConfigField::Username => &mut app.config_model.username_input,
+                ConfigField::DefaultPath => &mut app.config_model.path_input,
             };
+
+            // Este workaround es necesario para que CMD si pesque la wea
+            // de backslash.
+            if let crossterm::event::KeyCode::Char('\\') = ev.code {
+                let clean_ev = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Char('\\'),
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                active_input.input(clean_ev);
+            } else {
+                active_input.input(ev);
+            }
         }
     }
 }
