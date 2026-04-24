@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
-    layout::Rect,
+    layout::{Constraint, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Clear, Paragraph},
 };
@@ -78,14 +78,22 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
 }
 
 pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
-    let chunks = ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Vertical)
-        .constraints([
-            ratatui::layout::Constraint::Length(3),
-            ratatui::layout::Constraint::Length(3),
-            ratatui::layout::Constraint::Min(0),
-        ])
-        .split(area);
+    let main_layout = Layout::vertical([
+        Constraint::Min(0),    // Everything else
+        Constraint::Length(1), // Footer
+    ])
+    .split(area);
+
+    let content_area = main_layout[0];
+    let footer_area = main_layout[1];
+
+    // 2. Your existing internal layout logic (now using content_area)
+    let chunks = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Min(0),
+    ])
+    .split(content_area);
 
     // Styling for selection
     let web_style = if matches!(model.selected, Selection::Web) {
@@ -135,16 +143,23 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect) {
         chunks[1],
     );
 
+    f.render_widget(
+        Paragraph::new("B: Bump | Esc: Atrás").style(Style::default().fg(Color::DarkGray)),
+        footer_area,
+    );
+
     // --- MODAL LOGIC ---
     if model.is_naming_bump {
         let popup_area = centered_rect(60, 20, area);
-        f.render_widget(Clear, popup_area); // This clears the background under the modal
+        f.render_widget(Clear, popup_area);
         let block = Block::default()
             .title(" Bump Message ")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Yellow));
-        let p = Paragraph::new(model.bump_message.as_str()).block(block);
-        f.render_widget(p, popup_area);
+        f.render_widget(
+            Paragraph::new(model.bump_message.as_str()).block(block),
+            popup_area,
+        );
     }
 }
 

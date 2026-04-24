@@ -14,8 +14,6 @@ use ratatui::{
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
-    layout::{Constraint, Direction, Layout},
-    widgets::Paragraph,
 };
 use std::{error::Error, io};
 
@@ -87,30 +85,17 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
     while !app.should_quit {
         terminal
             .draw(|f| {
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .margin(2)
-                    .constraints([Constraint::Min(1), Constraint::Length(3)])
-                    .split(f.area());
+                let main_area = f.area();
 
                 match &mut app.state {
                     AppState::Navigating => {
-                        screens::navigation::view(&mut app.navigation_state, f, chunks[0]);
-                        f.render_widget(
-                            Paragraph::new("↑/↓: Navegar | Enter: Abrir | C: Config | Esc: Salir"),
-                            chunks[1],
-                        );
+                        screens::navigation::view(&mut app.navigation_state, f, main_area);
                     }
                     AppState::ViewingProject(m) => {
-                        screens::project_view::view(m, f, chunks[0]);
-                        f.render_widget(Paragraph::new("B: Bump | Esc: Atrás"), chunks[1]);
+                        screens::project_view::view(m, f, main_area);
                     }
                     AppState::Configuring => {
-                        screens::config::view(&app.config_model, f, chunks[0]);
-                        f.render_widget(
-                            Paragraph::new("Enter: Guardar | Esc: Cancelar"),
-                            chunks[1],
-                        );
+                        screens::config::view(&app.config_model, f, main_area);
                     }
                 }
             })

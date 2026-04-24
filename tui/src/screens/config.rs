@@ -74,28 +74,32 @@ impl<'a> ConfigModel<'a> {
 }
 
 pub fn view(model: &ConfigModel, f: &mut Frame, area: Rect) {
+    // Split into Main Inputs and Footer
     let layout = Layout::vertical([
-        Constraint::Length(1), // Ayuda
         Constraint::Length(3), // Usuario
         Constraint::Length(3), // Ruta
-        Constraint::Min(0),
+        Constraint::Min(0),    // Spacer
+        Constraint::Length(1), // Footer (moved from top to bottom)
     ])
     .split(area);
 
-    f.render_widget(
-        Paragraph::new("Tab: Cambiar Campo | Enter: Guardar | Esc: Cancelar")
-            .alignment(Alignment::Center),
-        layout[0],
-    );
-
+    // Input rendering
     let mut username_input = model.username_input.clone();
     username_input.set_block(model.create_block(ConfigField::Username, "Nombre de Usuario"));
 
     let mut path_input = model.path_input.clone();
     path_input.set_block(model.create_block(ConfigField::DefaultPath, "Ruta Base de Proyectos"));
 
-    f.render_widget(&username_input, layout[1]);
-    f.render_widget(&path_input, layout[2]);
+    f.render_widget(&username_input, layout[0]);
+    f.render_widget(&path_input, layout[1]);
+
+    // Footer rendering
+    f.render_widget(
+        Paragraph::new("Tab: Cambiar Campo | Enter: Guardar | Esc: Cancelar")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::Cyan)), // Distinct color for config actions
+        layout[3],
+    );
 }
 
 pub fn update(app: &mut App, msg: ConfigMsg) {

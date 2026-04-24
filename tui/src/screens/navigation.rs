@@ -2,9 +2,9 @@ use crate::{App, AppState, Message, screens::project_view::ProjectModel};
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, ListState},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::{fs, path::PathBuf};
 
@@ -103,6 +103,16 @@ impl NavModel {
 }
 
 pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
+    // 1. Split the area internally
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),    // Main content
+            Constraint::Length(1), // Footer (adjusted to 1 for a cleaner look)
+        ])
+        .split(area);
+
+    // 2. Render Main Content (The List)
     let items: Vec<ListItem> = model
         .items
         .iter()
@@ -112,7 +122,6 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
     let list = List::new(items)
         .block(
             Block::default()
-                // "Navigating" -> "Navegando" o "Directorio"
                 .title(format!(" Navegando: {} ", model.current_dir.display()))
                 .borders(Borders::ALL),
         )
@@ -123,7 +132,12 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect) {
         )
         .highlight_symbol(">> ");
 
-    f.render_stateful_widget(list, area, &mut model.list_state);
+    f.render_stateful_widget(list, chunks[0], &mut model.list_state);
+
+    // 3. Render Footer
+    let footer = Paragraph::new("↑/↓: Navegar | Enter: Abrir | C: Config | Esc: Salir")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(footer, chunks[1]);
 }
 
 pub fn update(app: &mut App, msg: NavMsg) {
