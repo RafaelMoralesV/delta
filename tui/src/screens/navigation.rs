@@ -41,12 +41,11 @@ pub fn handle_key_event(key: event::KeyEvent, state: &NavModel) -> Option<Messag
     let is_searching = state.is_searching;
 
     // 1. Handle Global Mode Toggles
-    if !is_searching {
-        if (key.code == KeyCode::Char('f') && key.modifiers.contains(KeyModifiers::CONTROL))
-            || key.code == KeyCode::Char('/')
-        {
-            return Some(NavMsg::StartSearch.into());
-        }
+    if !is_searching
+        && (key.code == KeyCode::Char('f') && key.modifiers.contains(KeyModifiers::CONTROL))
+        || key.code == KeyCode::Char('/')
+    {
+        return Some(NavMsg::StartSearch.into());
     }
 
     // 2. Handle Search Mode Input
@@ -173,11 +172,11 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
     // Change footer text based on mode
     let help_text = if model.is_searching {
         format!(
-            "SEARCHING: {} | Enter: Confirm | Esc: Cancel",
+            "BUSCANDO: {} | Enter: Confirmar | Esc: Cancelar",
             model.search_query
         )
     } else {
-        "↑/↓: Nav | /: Search | Enter: Open".to_string()
+        "↑/↓: Nav | /: Buscar | c: Configuracion | Espacio: Entrar | Enter: Seleccionar".to_string()
     };
 
     crate::components::page::draw_page(f, area, &title, &help_text, cfg, |f, chunk| {

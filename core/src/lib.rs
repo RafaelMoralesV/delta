@@ -101,14 +101,14 @@ pub fn get_current_versions(
     }
 }
 
-fn extract_version_from_package_json(fs: &impl FileHandler, path: &PathBuf) -> Option<AppVersion> {
+fn extract_version_from_package_json(fs: &impl FileHandler, path: &Path) -> Option<AppVersion> {
     let content = fs.read_to_string(path).ok()?;
     let re = Regex::new(r#""version"\s*:\s*"([^"]+)""#).ok()?;
     let caps = re.captures(&content)?;
     AppVersion::parse(caps.get(1)?.as_str()).ok()
 }
 
-fn extract_version_from_csproj(fs: &impl FileHandler, path: &PathBuf) -> Option<AppVersion> {
+fn extract_version_from_csproj(fs: &impl FileHandler, path: &Path) -> Option<AppVersion> {
     let content = fs.read_to_string(path).ok()?;
     let re = Regex::new(r"(?i)<Version>(.*?)</Version>").ok()?;
     let caps = re.captures(&content)?;
