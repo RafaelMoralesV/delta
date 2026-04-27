@@ -86,6 +86,7 @@ impl NavModel {
             search_query: String::new(),
         };
         model.load_directory();
+        model.apply_filter();
         model
     }
 
@@ -101,16 +102,17 @@ impl NavModel {
                 .collect();
             dirs.sort();
             self.items.extend(dirs.clone());
-            self.filtered_items.extend(dirs);
         }
         self.list_state.select(Some(0));
+        self.search_query = String::new();
+        self.apply_filter();
     }
 
     pub fn next(&mut self) {
         let i = match self.list_state.selected() {
             Some(i) => {
-                if i >= self.items.len() - 1 {
-                    self.items.len() - 1
+                if i >= self.filtered_items.len() - 1 {
+                    self.filtered_items.len() - 1
                 } else {
                     i + 1
                 }
@@ -167,7 +169,6 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
     };
 
     crate::components::page::draw_page(f, area, &title, &help_text, cfg, |f, chunk| {
-        // IMPORTANT: Render filtered_items, not items
         let items: Vec<ListItem> = model
             .filtered_items
             .iter()
@@ -196,34 +197,30 @@ pub fn update(app: &mut App, msg: NavMsg) {
         }
         NavMsg::MoveInto => {
             if let Some(i) = app.navigation_state.list_state.selected() {
-                let selected = app.navigation_state.items[i].clone();
+                let selected = app.navigation_state.filtered_items[i].clone();
 
                 if selected == ".. (Subir)" {
-                    app.navigation_state.current_dir.pop();
+                    return update(app, NavMsg::MoveOut);
+                }
+                let new_path = app.navigation_state.current_dir.join(&selected);
+                if new_path.is_dir() {
+                    app.navigation_state.current_dir = new_path;
                     app.navigation_state.load_directory();
-                } else {
-                    let new_path = app.navigation_state.current_dir.join(&selected);
-                    if new_path.is_dir() {
-                        app.navigation_state.current_dir = new_path;
-                        app.navigation_state.load_directory();
-                    }
                 }
             }
         }
         NavMsg::Select => {
             if let Some(i) = app.navigation_state.list_state.selected() {
-                let selected = app.navigation_state.items[i].clone();
+                let selected = app.navigation_state.filtered_items[i].clone();
 
                 // El usuario puede seleccionar nuestra meta-carpeta. En ese caso, lo mandamos de vuelta pa arriba como
                 // si fuera un MoveInto.
                 if selected == ".. (Subir)" {
-                    app.navigation_state.current_dir.pop();
-                    app.navigation_state.load_directory();
-                } else {
-                    let new_path = app.navigation_state.current_dir.join(&selected);
-                    let versions = core::get_current_versions(&new_path, &selected);
-                    app.state = AppState::ViewingProject(ProjectModel::new(selected, versions));
+                    return update(app, NavMsg::MoveOut);
                 }
+                let new_path = app.navigation_state.current_dir.join(&selected);
+                let versions = core::get_current_versions(&new_path, &selected);
+                app.state = AppState::ViewingProject(ProjectModel::new(selected, versions));
             }
         }
         NavMsg::StartSearch => {

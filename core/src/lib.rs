@@ -150,7 +150,7 @@ fn update_readme(
         - Nombre: {}\n\
         - Objeto: {}\n\
         - Fecha: {}\n\
-        - Descripción: {}\n\n",
+        - Descripción: {}\n",
         ver, aut, obj, date, desc
     );
 

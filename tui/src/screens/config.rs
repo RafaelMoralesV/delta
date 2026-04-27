@@ -4,7 +4,7 @@ use ratatui::{
     Frame,
     crossterm::{
         self,
-        event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+        event::{self, KeyCode},
     },
     layout::{Constraint, Layout, Rect},
     style::Style,
