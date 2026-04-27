@@ -5,14 +5,15 @@ use ratatui::{
     crossterm::event::{self, KeyCode, KeyModifiers},
     layout::Rect,
     style::Style,
+    text::{Line, Span},
     widgets::{List, ListItem, ListState},
 };
 use std::{fs, path::PathBuf};
 
 pub struct NavModel {
     pub current_dir: PathBuf,
-    pub items: Vec<String>,          // Full list
-    pub filtered_items: Vec<String>, // Visible list based on search
+    pub items: Vec<String>, // Full list
+    pub filtered_items: Vec<(String, Vec<usize>)>,
     pub list_state: ListState,
     pub search_query: String, // The current input
     pub is_searching: bool,   // Mode toggle
@@ -138,18 +139,29 @@ impl NavModel {
 
     pub fn apply_filter(&mut self) {
         if self.search_query.is_empty() {
-            self.filtered_items = self.items.clone();
+            self.filtered_items = self.items.iter().map(|i| (i.clone(), vec![])).collect();
         } else {
             let query = self.search_query.to_lowercase();
             let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
-            self.filtered_items = self
+
+            let mut results: Vec<(i64, String, Vec<usize>)> = self
                 .items
                 .iter()
-                .filter(|item| matcher.fuzzy_match(item, &query).is_some())
-                .cloned()
+                .filter_map(|item| {
+                    matcher
+                        .fuzzy_indices(item, &query)
+                        .map(|(score, indices)| (score, item.clone(), indices))
+                })
+                .collect();
+
+            // Sort by score so the best matches are at the top
+            results.sort_by(|a, b| b.0.cmp(&a.0));
+
+            self.filtered_items = results
+                .into_iter()
+                .map(|(_, item, indices)| (item, indices))
                 .collect();
         }
-        // Reset selection to the top after filtering
         self.list_state.select(Some(0));
     }
 }
@@ -172,7 +184,29 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
         let items: Vec<ListItem> = model
             .filtered_items
             .iter()
-            .map(|i| ListItem::new(i.as_str()).style(Style::default().fg(p.get_color(&p.base05))))
+            .map(|(text, indices)| {
+                let mut spans = Vec::new();
+
+                for (i, c) in text.chars().enumerate() {
+                    if indices.contains(&i) {
+                        // Style for the matching characters (e.g., Bold + Yellow)
+                        spans.push(Span::styled(
+                            c.to_string(),
+                            Style::default()
+                                .fg(p.get_color(&p.base0A)) // Highlight color (Yellow/Gold)
+                                .add_modifier(
+                                    ratatui::style::Modifier::BOLD
+                                        | ratatui::style::Modifier::UNDERLINED,
+                                ),
+                        ));
+                    } else {
+                        // Normal style
+                        spans.push(Span::raw(c.to_string()));
+                    }
+                }
+
+                ListItem::new(Line::from(spans))
+            })
             .collect();
 
         let list = List::new(items).highlight_symbol(">> ").highlight_style(
@@ -197,7 +231,7 @@ pub fn update(app: &mut App, msg: NavMsg) {
         }
         NavMsg::MoveInto => {
             if let Some(i) = app.navigation_state.list_state.selected() {
-                let selected = app.navigation_state.filtered_items[i].clone();
+                let selected = app.navigation_state.filtered_items[i].0.clone();
 
                 if selected == ".. (Subir)" {
                     return update(app, NavMsg::MoveOut);
@@ -211,7 +245,7 @@ pub fn update(app: &mut App, msg: NavMsg) {
         }
         NavMsg::Select => {
             if let Some(i) = app.navigation_state.list_state.selected() {
-                let selected = app.navigation_state.filtered_items[i].clone();
+                let selected = app.navigation_state.filtered_items[i].0.clone();
 
                 // El usuario puede seleccionar nuestra meta-carpeta. En ese caso, lo mandamos de vuelta pa arriba como
                 // si fuera un MoveInto.
