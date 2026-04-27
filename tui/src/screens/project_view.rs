@@ -221,18 +221,19 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                 match model.selected {
                     Selection::Web => {
                         if let Some(current) = model.versions.web {
-                            let _ = core::execute_bump(instructions, current, true);
+                            let _ = core::execute_bump(&app.fs, instructions, current, true);
                         }
                     }
                     Selection::Bl => {
                         if let Some(current) = model.versions.bl {
-                            let _ = core::execute_bump(instructions, current, false);
+                            let _ = core::execute_bump(&app.fs, instructions, current, false);
                         }
                     }
                 }
 
                 // Refresh versions after bump so the UI stays in sync
                 model.versions = core::get_current_versions(
+                    &app.fs,
                     &app.config.default_dir.join(&model.name),
                     &model.name,
                 );

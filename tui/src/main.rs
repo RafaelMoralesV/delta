@@ -7,6 +7,7 @@ use crate::screens::navigation::NavModel;
 use crate::screens::project_view::ProjectModel;
 use crate::{config::AppConfig, screens::project_view::ProjectMsg};
 
+use core::OsFileSystem;
 use ratatui::crossterm::ExecutableCommand;
 use ratatui::crossterm::event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags};
 use ratatui::{
@@ -32,6 +33,7 @@ struct App {
     config: AppConfig,
     config_model: ConfigModel<'static>,
     should_quit: bool,
+    fs: OsFileSystem,
 }
 
 pub enum Message {
@@ -56,6 +58,7 @@ impl App {
             config_model,
             config,
             should_quit: false,
+            fs: OsFileSystem,
         }
     }
 }
