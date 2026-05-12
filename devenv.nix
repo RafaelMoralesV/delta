@@ -17,6 +17,8 @@
     rustc
     clippy
     bacon
+    rustfmt
+    rust-analyzer
   ];
 
   # https://devenv.sh/languages/

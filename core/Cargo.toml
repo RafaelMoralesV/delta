@@ -10,3 +10,4 @@ chrono = { workspace = true }
 regex.workspace = true
 serde_json = { workspace = true }
 mockall = "0.14.0"
+fuzzy-matcher = "0.3.7"

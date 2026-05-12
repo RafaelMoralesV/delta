@@ -48,8 +48,9 @@ pub enum Message {
 
 impl App {
     fn new() -> Self {
+        let fs = OsFileSystem;
         let config = AppConfig::load();
-        let nav_state = NavModel::new(config.default_dir.clone());
+        let nav_state = NavModel::new(&fs, config.default_dir.clone());
         let config_model = ConfigModel::new(config.username.clone(), config.default_dir.clone());
 
         Self {
@@ -58,7 +59,7 @@ impl App {
             config_model,
             config,
             should_quit: false,
-            fs: OsFileSystem,
+            fs,
         }
     }
 }
