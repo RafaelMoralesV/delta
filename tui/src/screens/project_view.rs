@@ -71,7 +71,7 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
         KeyCode::Esc => ProjectMsg::Back,
         KeyCode::Char('j') | KeyCode::Down => ProjectMsg::MoveDown,
         KeyCode::Char('k') | KeyCode::Up => ProjectMsg::MoveUp,
-        KeyCode::Char('b') => ProjectMsg::PrepareBumpSingle,
+        KeyCode::Char('b') | KeyCode::Char('B') | KeyCode::Enter => ProjectMsg::PrepareBumpSingle,
         _ => return None,
     };
 
@@ -80,12 +80,13 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
 
 pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
     let p = &cfg.palette;
+    let title = format!("Proyecto: {}", model.name);
 
     crate::components::page::draw_page(
         f,
         area,
-        "Project Detail",
-        "B: Bump | Esc: Atrás",
+        &title,
+        "B/Enter: Bump | Esc: Atrás",
         cfg,
         |f, chunk| {
             let chunks = Layout::vertical([
@@ -164,7 +165,7 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
         f.render_widget(ratatui::widgets::Clear, popup_area);
 
         let block = Block::default()
-            .title(" Bump Message ")
+            .title(" Mensaje ")
             .borders(Borders::ALL)
             // base09 (Orange) is great for "Action Required" modals
             .border_style(Style::default().fg(p.get_color(&p.base09)))
