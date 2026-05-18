@@ -8,13 +8,7 @@ use std::path::{Path, PathBuf};
 
 pub mod navigation;
 
-pub use navigation::{
-    NavigationService,
-    DirectoryEntry,
-    FuzzyMatch,
-    FileType,
-    NavigationError,
-};
+pub use navigation::{DirectoryEntry, FileType, FuzzyMatch, NavigationError, NavigationService};
 
 // ... rest of your existing code
 
@@ -29,7 +23,6 @@ pub trait FileHandler {
     fn file_name(&self, path: &Path) -> Option<String>;
     fn canonicalize(&self, path: &Path) -> Result<PathBuf>;
 }
-
 
 pub struct OsFileSystem;
 impl FileHandler for OsFileSystem {
@@ -111,6 +104,7 @@ impl fmt::Display for AppVersion {
     }
 }
 
+#[derive(Default)]
 pub struct ProjectVersions {
     pub web: Option<AppVersion>,
     pub bl: Option<AppVersion>,

@@ -7,13 +7,16 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::{App, AppState, Message, config::AppConfig};
+use crate::{App, AppFocus, Message, config::AppConfig};
 
+#[derive(Default)]
 pub enum Selection {
+    #[default]
     Bl = 0,
     Web = 1,
 }
 
+#[derive(Default)]
 pub struct ProjectModel {
     pub name: String,
     pub versions: core::ProjectVersions,
@@ -202,7 +205,8 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 pub fn update(app: &mut App, msg: ProjectMsg) {
-    if let AppState::ViewingProject(ref mut model) = app.state {
+    let ref mut model = app.project_view_model;
+    if let AppFocus::ViewingProject = app.current_focused_screen {
         match msg {
             ProjectMsg::MoveUp => model.selected = Selection::Web,
             ProjectMsg::MoveDown => model.selected = Selection::Bl,
@@ -241,7 +245,7 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                 model.is_naming_bump = false;
             }
             ProjectMsg::CancelBump => model.is_naming_bump = false,
-            ProjectMsg::Back => app.state = AppState::Navigating,
+            ProjectMsg::Back => app.current_focused_screen = AppFocus::Navigating,
         }
     }
 }

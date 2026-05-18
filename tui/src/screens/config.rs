@@ -13,7 +13,7 @@ use ratatui::{
 use ratatui_textarea::TextArea;
 
 use crate::{
-    App, AppState, Message,
+    App, AppFocus, Message,
     config::{AppConfig, Palette},
 };
 
@@ -155,9 +155,9 @@ pub fn update(app: &mut App, msg: ConfigMsg) {
             app.config.default_dir = PathBuf::from(path_str);
 
             let _ = app.config.save();
-            app.state = AppState::Navigating;
+            app.current_focused_screen = AppFocus::Navigating;
         }
-        ConfigMsg::Cancel => app.state = AppState::Navigating,
+        ConfigMsg::Cancel => app.current_focused_screen = AppFocus::Navigating,
         ConfigMsg::UpdateInput(ev) => {
             let active_input = match app.config_model.active_field {
                 ConfigField::Username => &mut app.config_model.username_input,

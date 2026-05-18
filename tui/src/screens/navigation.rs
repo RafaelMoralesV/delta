@@ -1,4 +1,4 @@
-use crate::{App, AppState, Message, config::AppConfig, screens::project_view::ProjectModel};
+use crate::{App, AppFocus, Message, config::AppConfig, screens::project_view::ProjectModel};
 use core::{
     FileHandler, NavigationError, NavigationService,
     navigation::{DirectoryDisplayInfo, ProjectType},
@@ -327,7 +327,7 @@ fn get_project_type_style(project_type: &ProjectType, palette: &crate::config::P
 
 pub fn update(app: &mut App, msg: NavMsg) {
     match msg {
-        NavMsg::ToConfig => app.state = AppState::Configuring,
+        NavMsg::ToConfig => app.current_focused_screen = AppFocus::Configuring,
         NavMsg::MoveUp => app.navigation_state.previous(),
         NavMsg::MoveDown => app.navigation_state.next(),
         NavMsg::MoveOut => {
@@ -359,8 +359,9 @@ pub fn update(app: &mut App, msg: NavMsg) {
                         if NavigationService::validate_navigation_path(&app.fs, &new_path).is_ok() {
                             let versions =
                                 core::get_current_versions(&app.fs, &new_path, &selected);
-                            app.state =
-                                AppState::ViewingProject(ProjectModel::new(selected, versions));
+
+                            app.project_view_model = ProjectModel::new(selected, versions);
+                            app.current_focused_screen = AppFocus::ViewingProject;
                         } else {
                             app.navigation_state.error =
                                 Some(format!("Cannot access: {}", selected));

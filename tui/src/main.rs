@@ -21,18 +21,32 @@ use ratatui::{
 };
 use std::{error::Error, io};
 
-pub enum AppState {
+pub enum AppFocus {
     Navigating,
-    ViewingProject(ProjectModel),
+    ViewingProject,
     Configuring,
 }
 
 struct App {
-    state: AppState,
-    navigation_state: NavModel,
+    /// Pantalla en la cual estamos actualmente
+    current_focused_screen: AppFocus,
+
+    /// Configuracion de la App.
     config: AppConfig,
+
+    /// Estado de la pantalla de navegacion
+    navigation_state: NavModel,
+
+    /// Estado de la pantalla de vision de proyecto
+    project_view_model: ProjectModel,
+
+    /// Estado de la pantalla de configuracion
     config_model: ConfigModel<'static>,
+
+    /// Cierra la sesion
     should_quit: bool,
+
+    /// Helper sencillo para no andar creandolo a cada rato. No mantiene estado.
     fs: OsFileSystem,
 }
 
@@ -40,9 +54,13 @@ pub enum Message {
     // Global Actions
     Quit,
 
-    // Scoped Actions (using From/Into)
+    // Mensajes de la pantalla de navegacion
     Navigation(screens::navigation::NavMsg),
+
+    // Mensajes de la pantalla de configuracion
     Config(screens::config::ConfigMsg),
+
+    // Mensajes de la pantalla de vision de proyecto
     Project(ProjectMsg),
 }
 
@@ -54,9 +72,10 @@ impl App {
         let config_model = ConfigModel::new(config.username.clone(), config.default_dir.clone());
 
         Self {
-            state: AppState::Navigating,
+            current_focused_screen: AppFocus::Navigating,
             navigation_state: nav_state,
             config_model,
+            project_view_model: ProjectModel::default(),
             config,
             should_quit: false,
             fs,
@@ -99,8 +118,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
             .draw(|f| {
                 let main_area = f.area();
 
-                match &mut app.state {
-                    AppState::Navigating => {
+                if main_area.width > 80 {
+                    // Seccionamos por mitades la pantalla.
+                }
+
+                match &mut app.current_focused_screen {
+                    AppFocus::Navigating => {
                         screens::navigation::view(
                             &mut app.navigation_state,
                             f,
@@ -108,10 +131,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                             &app.config,
                         );
                     }
-                    AppState::ViewingProject(m) => {
-                        screens::project_view::view(m, f, main_area, &app.config);
+                    AppFocus::ViewingProject => {
+                        screens::project_view::view(
+                            &app.project_view_model,
+                            f,
+                            main_area,
+                            &app.config,
+                        );
                     }
-                    AppState::Configuring => {
+                    AppFocus::Configuring => {
                         screens::config::view(&app.config_model, f, main_area, &app.config);
                     }
                 }
@@ -123,13 +151,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                 continue;
             }
 
-            let msg = match &app.state {
-                AppState::Navigating => {
+            let msg = match &app.current_focused_screen {
+                AppFocus::Navigating => {
                     screens::navigation::handle_key_event(key, &app.navigation_state)
                 }
-                AppState::Configuring => screens::config::handle_key_event(key),
-                AppState::ViewingProject(model) => {
-                    screens::project_view::handle_key_event(key, model)
+                AppFocus::Configuring => screens::config::handle_key_event(key),
+                AppFocus::ViewingProject => {
+                    screens::project_view::handle_key_event(key, &app.project_view_model)
                 }
             };
 
