@@ -287,22 +287,33 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
             }
             ProjectMsg::UpdateInput(s) => model.bump_message = s,
             ProjectMsg::ConfirmBump => {
-                let instructions = core::BumpInstructions {
-                    author: app.config.username.clone(),
-                    project_dir: app.navigation_state.current_dir.clone(),
-                    project_name: model.name.clone(),
-                    description: model.bump_message.clone(),
-                };
-
                 match model.selected {
                     Selection::Web => {
                         if let Some(current) = model.versions.web {
-                            let _ = core::execute_bump(&app.fs, instructions, current, true);
+                            let instructions = core::BumpInstructions {
+                                author: app.config.username.clone(),
+                                project_dir: app.navigation_state.current_dir.clone(),
+                                project_name: model.name.clone(),
+                                description: model.bump_message.clone(),
+                                version_original: current,
+                                is_web_project: true,
+                            };
+
+                            let _ = instructions.execute_bump(&app.fs);
                         }
                     }
                     Selection::Bl => {
                         if let Some(current) = model.versions.bl {
-                            let _ = core::execute_bump(&app.fs, instructions, current, false);
+                            let instructions = core::BumpInstructions {
+                                author: app.config.username.clone(),
+                                project_dir: app.navigation_state.current_dir.clone(),
+                                project_name: model.name.clone(),
+                                description: model.bump_message.clone(),
+                                version_original: current,
+                                is_web_project: false,
+                            };
+
+                            let _ = instructions.execute_bump(&app.fs);
                         }
                     }
                 }

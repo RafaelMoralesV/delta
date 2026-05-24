@@ -75,11 +75,6 @@ impl Panel {
         self
     }
 
-    pub fn borders(mut self, borders: Borders) -> Self {
-        self.borders = borders;
-        self
-    }
-
     pub fn render<F>(&self, f: &mut Frame, area: Rect, config: &AppConfig, content: F)
     where
         F: FnOnce(&mut Frame, Rect),

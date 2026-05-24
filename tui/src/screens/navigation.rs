@@ -5,7 +5,7 @@ use crate::{
     screens::project_view::ProjectModel,
 };
 use core::{
-    FileHandler, NavigationError, NavigationService, OsFileSystem,
+    FileHandler, NavigationError, NavigationService,
     navigation::{DirectoryDisplayInfo, ProjectType},
 };
 use ratatui::{
@@ -27,7 +27,6 @@ pub struct NavModel {
     pub search_query: String,
     pub is_searching: bool,
     pub error: Option<String>,
-    pub fs: OsFileSystem,
 }
 
 pub enum NavMsg {
@@ -100,7 +99,6 @@ impl NavModel {
             search_query: String::new(),
             error: None,
             directory_info: HashMap::new(),
-            fs: OsFileSystem,
         };
 
         model.load_directory(fs);

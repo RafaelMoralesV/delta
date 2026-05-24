@@ -10,9 +10,13 @@ pub mod navigation;
 
 pub use navigation::{DirectoryEntry, FileType, FuzzyMatch, NavigationError, NavigationService};
 
-// ... rest of your existing code
-
 #[automock]
+/// File Handler trait
+///
+/// Provee una interfaz para interactuar con el sistema de archivos.
+/// Normalmente utilizariamos algo como OsFileSystem para interactuar directamente, pero con
+/// proposito de poder hacer testing de los metodos de esta libreria, se creo esta interfaz para
+/// poder hacer una clase 'Mock' que no interactue con el FS.
 pub trait FileHandler {
     fn read_to_string(&self, path: &Path) -> Result<String>;
     fn write(&self, path: &Path, content: &str) -> Result<()>;
@@ -24,6 +28,7 @@ pub trait FileHandler {
     fn canonicalize(&self, path: &Path) -> Result<PathBuf>;
 }
 
+/// Implementador de FileHandler que si toca el sistema de archivos.
 pub struct OsFileSystem;
 impl FileHandler for OsFileSystem {
     fn read_to_string(&self, path: &Path) -> Result<String> {
@@ -62,6 +67,10 @@ impl FileHandler for OsFileSystem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Formato de versionamiento de los proyectos de Fin700.
+///
+/// Para nosotros, `major` *siempre* deberia ser 8. `Minor` y `Patch` son valores entre 0 y 99 inclusive,
+/// y `build` es siempre cero exceptuando cuando es generado por un pipeline.
 pub struct AppVersion {
     pub major: u32,
     pub minor: u32,
@@ -70,6 +79,10 @@ pub struct AppVersion {
 }
 
 impl AppVersion {
+    /// Sube en 1 la version de un proyecto.
+    ///
+    /// Por regla de negocio, la forma en la que se sube de version es subiendo el `patch` hasta 99.
+    /// Si este pasa a 100, en vez de eso, subimos de version el `minor` y devolvemos `patch` hacia 0.
     pub fn bumped(&self) -> Self {
         let mut next = *self;
         next.patch += 1;
@@ -80,6 +93,11 @@ impl AppVersion {
         next
     }
 
+    /// Parsea una version.
+    ///
+    /// Se espera en el formato de: "{major}.{minor}.{patch}.{build}". Lo esperable es que sean u16,
+    /// pero lo deje en u32 por flojera nomas. En cualquier caso, si el numero no es parseable como
+    /// u32, entonces no es una version valida.
     pub fn parse(s: &str) -> Result<Self> {
         let parts: Vec<&str> = s.split('.').collect();
         if parts.len() != 4 {
@@ -110,7 +128,7 @@ pub struct ProjectVersions {
     pub bl: Option<AppVersion>,
 }
 
-/// Attempts to read the current versions for a selected project directory
+/// Intenta leer las versiones del proeycto seleccionado.
 pub fn get_current_versions(
     fs: &impl FileHandler,
     project_dir: &Path,
@@ -120,7 +138,6 @@ pub fn get_current_versions(
         .join(format!("web{}", project_name))
         .join("package.json");
 
-    // Note: Adjusted to match your specific bl structure logic
     let bl_path = project_dir
         .join(format!("bl{}", project_name))
         .join(format!("bl{}", project_name))
@@ -132,6 +149,7 @@ pub fn get_current_versions(
     }
 }
 
+/// A partir de un regex, obtiene la version del `package.json`.
 fn extract_version_from_package_json(fs: &impl FileHandler, path: &Path) -> Option<AppVersion> {
     let content = fs.read_to_string(path).ok()?;
     let re = Regex::new(r#""version"\s*:\s*"([^"]+)""#).ok()?;
@@ -139,6 +157,7 @@ fn extract_version_from_package_json(fs: &impl FileHandler, path: &Path) -> Opti
     AppVersion::parse(caps.get(1)?.as_str()).ok()
 }
 
+/// A partir de un Regex, obtiene la version del archivo `.csproj`
 fn extract_version_from_csproj(fs: &impl FileHandler, path: &Path) -> Option<AppVersion> {
     let content = fs.read_to_string(path).ok()?;
     let re = Regex::new(r"(?i)<Version>(.*?)</Version>").ok()?;
@@ -147,122 +166,137 @@ fn extract_version_from_csproj(fs: &impl FileHandler, path: &Path) -> Option<App
 }
 
 #[derive(Debug)]
+/// Estructura que guarda las intrucciones para escribir un Bump dentro de README.md
 pub struct BumpInstructions {
+    /// Autor del bump
     pub author: String,
+
+    /// Ruta del proyecto que se esta escribiendo
     pub project_dir: PathBuf,
+
+    /// Nombre del proyecto a escribir
     pub project_name: String,
+
+    /// Descripcion o mensaje del bump.
     pub description: String,
+
+    /// Version original del proyecto
+    pub version_original: AppVersion,
+
+    /// Indicador del tipo de proyecto que vamos a bumpear
+    pub is_web_project: bool,
 }
 
-pub fn execute_bump(
-    fs: &impl FileHandler,
-    instructions: BumpInstructions,
-    current_version: AppVersion,
-    is_web: bool,
-) -> Result<()> {
-    let target_version = current_version.bumped();
-    let date_str = Local::now().format("%d/%m/%Y").to_string();
+impl BumpInstructions {
+    /// Ejecuta el bumpeo de un proyecto.
+    ///
+    /// Para bumpear un proyecto, se siguen los siguientes pasos:
+    /// - Se otiene la version objetivo y la Fecha.
+    /// - Se determina si es web o bl.
+    /// - Se actualiza el Readme a partir del BumpInstructions
+    /// - Dependiendo del tipo de proyecto, se actualiza package.json o .csproj
+    pub fn execute_bump(self, fs: &impl FileHandler) -> Result<()> {
+        let target_version = self.version_original.bumped();
+        let date_str = Local::now().format("%d/%m/%Y").to_string();
 
-    // Determine the "Objeto" name (e.g., "webProjectName" or "blProjectName")
-    let prefix = if is_web { "web" } else { "bl" };
-    let object_name = format!("{}{}", prefix, instructions.project_name);
-    let project_path = instructions
-        .project_dir
-        .join(&instructions.project_name)
-        .join(&object_name);
+        // Determine the "Objeto" name (e.g., "webProjectName" or "blProjectName")
+        let prefix = if self.is_web_project { "web" } else { "bl" };
+        let object_name = format!("{}{}", prefix, self.project_name);
+        let project_path = self.project_dir.join(&self.project_name).join(&object_name);
 
-    update_readme(
-        fs,
-        &project_path.join("README.md"),
-        &target_version.to_string(),
-        &instructions.author,
-        &object_name,
-        &date_str,
-        &instructions.description,
-    )?;
-
-    if is_web {
-        update_package_json(
+        Self::update_readme(
             fs,
-            &project_path.join("package.json"),
+            &project_path.join("README.md"),
             &target_version.to_string(),
+            &self.author,
+            &object_name,
+            &date_str,
+            &self.description,
         )?;
-    } else {
-        let csproj_files = find_csproj_shallow(fs, &project_path);
-        for path in csproj_files {
-            update_csproj(fs, &path, &target_version.to_string())?;
+
+        if self.is_web_project {
+            Self::update_package_json(
+                fs,
+                &project_path.join("package.json"),
+                &target_version.to_string(),
+            )?;
+        } else {
+            let csproj_files = Self::find_csproj_shallow(fs, &project_path);
+            for path in csproj_files {
+                Self::update_csproj(fs, &path, &target_version.to_string())?;
+            }
         }
+
+        Ok(())
     }
 
-    Ok(())
-}
-
-fn update_readme(
-    fs: &impl FileHandler,
-    path: &Path,
-    ver: &str,
-    aut: &str,
-    obj: &str,
-    date: &str,
-    desc: &str,
-) -> Result<()> {
-    let entry = format!(
-        "## Version {}\n\n\
+    fn update_readme(
+        fs: &impl FileHandler,
+        path: &Path,
+        ver: &str,
+        aut: &str,
+        obj: &str,
+        date: &str,
+        desc: &str,
+    ) -> Result<()> {
+        let entry = format!(
+            "## Version {}\n\n\
         - Nombre: {}\n\
         - Objeto: {}\n\
         - Fecha: {}\n\
         - Descripción: {}\n",
-        ver, aut, obj, date, desc
-    );
+            ver, aut, obj, date, desc
+        );
 
-    let existing = fs.read_to_string(path).unwrap_or_default();
-    fs.write(path, &format!("{}{}", entry, existing))
-        .with_context(|| format!("Failed to update README at {:?}", path))
-}
+        let existing = fs.read_to_string(path).unwrap_or_default();
+        fs.write(path, &format!("{}{}", entry, existing))
+            .with_context(|| format!("Failed to update README at {:?}", path))
+    }
 
-fn update_package_json(fs: &impl FileHandler, path: &Path, version: &str) -> Result<()> {
-    let content = fs.read_to_string(path)?.replace("\r\n", "\n");
+    fn update_package_json(fs: &impl FileHandler, path: &Path, version: &str) -> Result<()> {
+        let content = fs.read_to_string(path)?.replace("\r\n", "\n");
 
-    let re = Regex::new(r#"("version"\s*:\s*)"[^"]+""#).unwrap();
-    let replacement = format!(r#"${{1}}"{version}""#);
-    let updated = re.replace(&content, replacement.as_str());
-    let updated = updated.as_ref();
-    fs.write(path, updated)?;
-    Ok(())
-}
+        let re = Regex::new(r#"("version"\s*:\s*)"[^"]+""#).unwrap();
+        let replacement = format!(r#"${{1}}"{version}""#);
+        let updated = re.replace(&content, replacement.as_str());
+        let updated = updated.as_ref();
+        fs.write(path, updated)?;
+        Ok(())
+    }
 
-fn update_csproj(fs: &impl FileHandler, path: &Path, version: &str) -> Result<()> {
-    let content = fs.read_to_string(path)?;
-    let re = Regex::new(r"(?i)<Version>.*?</Version>").unwrap();
-    let updated = re.replace(&content, format!("<Version>{}</Version>", version));
-    fs.write(path, &updated)?;
-    Ok(())
-}
+    fn update_csproj(fs: &impl FileHandler, path: &Path, version: &str) -> Result<()> {
+        let content = fs.read_to_string(path)?;
+        let re = Regex::new(r"(?i)<Version>.*?</Version>").unwrap();
+        let updated = re.replace(&content, format!("<Version>{}</Version>", version));
+        fs.write(path, &updated)?;
+        Ok(())
+    }
 
-fn find_csproj_shallow(fs: &impl FileHandler, base_path: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    let Ok(entries) = fs.read_dir(base_path) else {
-        return files;
-    };
+    fn find_csproj_shallow(fs: &impl FileHandler, base_path: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        let Ok(entries) = fs.read_dir(base_path) else {
+            return files;
+        };
 
-    for path in entries {
-        if path.is_dir() {
-            if let Ok(sub_entries) = fs.read_dir(&path) {
-                for sub_path in sub_entries {
-                    if is_csproj(&sub_path) {
-                        files.push(sub_path);
+        for path in entries {
+            if path.is_dir() {
+                if let Ok(sub_entries) = fs.read_dir(&path) {
+                    for sub_path in sub_entries {
+                        if Self::is_csproj(&sub_path) {
+                            files.push(sub_path);
+                        }
                     }
                 }
+            } else if Self::is_csproj(&path) {
+                files.push(path);
             }
-        } else if is_csproj(&path) {
-            files.push(path);
         }
+        files
     }
-    files
-}
 
-fn is_csproj(path: &Path) -> bool {
-    path.extension().and_then(|s| s.to_str()) == Some("csproj")
+    fn is_csproj(path: &Path) -> bool {
+        path.extension().and_then(|s| s.to_str()) == Some("csproj")
+    }
 }
 
 #[cfg(test)]
@@ -313,9 +347,11 @@ mod tests {
             project_dir: get_path("root"),
             project_name: "MyProj".into(),
             description: "Fixing stuff".into(),
+            version_original: AppVersion::parse("1.0.0.0").unwrap(),
+            is_web_project: true,
         };
 
-        execute_bump(&mock, inst, AppVersion::parse("1.0.0.0").unwrap(), true).unwrap();
+        inst.execute_bump(&mock).unwrap();
     }
 
     #[test]
@@ -354,9 +390,11 @@ mod tests {
             project_dir: get_path("root"),
             project_name: "MyProj".into(),
             description: "Major patch".into(),
+            version_original: AppVersion::parse("2.1.99.0").unwrap(),
+            is_web_project: false,
         };
 
-        execute_bump(&mock, inst, AppVersion::parse("2.1.99.0").unwrap(), false).unwrap();
+        inst.execute_bump(&mock).unwrap();
     }
 
     #[test]
@@ -377,9 +415,11 @@ mod tests {
             project_dir: get_path("root"),
             project_name: "MyProj".into(),
             description: "Fail test".into(),
+            version_original: AppVersion::parse("1.0.0.0").unwrap(),
+            is_web_project: true,
         };
 
-        let result = execute_bump(&mock, inst, AppVersion::parse("1.0.0.0").unwrap(), true);
+        let result = inst.execute_bump(&mock);
 
         assert!(result.is_err());
         assert!(
