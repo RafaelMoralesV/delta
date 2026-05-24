@@ -1,6 +1,11 @@
-use crate::{App, AppFocus, Message, config::AppConfig, screens::project_view::ProjectModel};
+use crate::{
+    App, AppFocus, Message,
+    components::layout::{AppLayout, Panel},
+    config::AppConfig,
+    screens::project_view::ProjectModel,
+};
 use core::{
-    FileHandler, NavigationError, NavigationService,
+    FileHandler, NavigationError, NavigationService, OsFileSystem,
     navigation::{DirectoryDisplayInfo, ProjectType},
 };
 use ratatui::{
@@ -16,12 +21,13 @@ use std::{collections::HashMap, path::PathBuf};
 pub struct NavModel {
     pub current_dir: PathBuf,
     pub items: Vec<String>,
-    pub directory_info: std::collections::HashMap<String, DirectoryDisplayInfo>, // Cache display info
+    pub directory_info: std::collections::HashMap<String, DirectoryDisplayInfo>,
     pub filtered_items: Vec<(String, Vec<usize>)>,
     pub list_state: ListState,
     pub search_query: String,
     pub is_searching: bool,
     pub error: Option<String>,
+    pub fs: OsFileSystem,
 }
 
 pub enum NavMsg {
@@ -33,7 +39,7 @@ pub enum NavMsg {
     ToConfig,
     StartSearch,
     UpdateSearch(String),
-    EndSearch(bool), // true to apply, false to cancel
+    EndSearch(bool),
     ClearError,
 }
 
@@ -44,14 +50,12 @@ impl From<NavMsg> for Message {
 }
 
 pub fn handle_key_event(key: event::KeyEvent, state: &NavModel) -> Option<Message> {
-    // Clear error on any key press
     if state.error.is_some() {
         return Some(NavMsg::ClearError.into());
     }
 
     let is_searching = state.is_searching;
 
-    // Rest of your existing handle_key_event code...
     if !is_searching
         && ((key.code == KeyCode::Char('f') && key.modifiers.contains(KeyModifiers::CONTROL))
             || key.code == KeyCode::Char('/'))
@@ -96,6 +100,7 @@ impl NavModel {
             search_query: String::new(),
             error: None,
             directory_info: HashMap::new(),
+            fs: OsFileSystem,
         };
 
         model.load_directory(fs);
@@ -110,16 +115,13 @@ impl NavModel {
         match NavigationService::list_directories(fs, &self.current_dir) {
             Ok(dirs) => {
                 for dir in &dirs {
-                    // Pre-compute display info for each directory
                     let full_path = self.current_dir.join(dir);
                     let info = NavigationService::get_directory_display_info(fs, &full_path);
                     self.directory_info.insert(dir.clone(), info);
                 }
                 self.items.extend(dirs);
             }
-            Err(_) => {
-                // Handle error silently or log
-            }
+            Err(_) => {}
         }
 
         self.list_state.select(Some(0));
@@ -157,12 +159,10 @@ impl NavModel {
 
     pub fn apply_filter(&mut self) {
         let matches = NavigationService::fuzzy_filter(&self.items, &self.search_query, false);
-
         self.filtered_items = matches
             .into_iter()
             .map(|m| (m.text, m.match_indices))
             .collect();
-
         self.list_state.select(Some(0));
     }
 
@@ -185,7 +185,6 @@ impl NavModel {
         let sanitized = NavigationService::sanitize_path_component(dir_name)?;
         let new_path = NavigationService::join_paths(&self.current_dir, &sanitized)?;
         NavigationService::validate_navigation_path(fs, &new_path)?;
-
         self.current_dir = new_path;
         self.load_directory(fs);
         Ok(())
@@ -198,12 +197,23 @@ impl NavModel {
     pub fn clear_error(&mut self) {
         self.error = None;
     }
+
+    pub fn get_selected_preview(&self) -> Option<(String, DirectoryDisplayInfo, PathBuf)> {
+        let i = self.list_state.selected()?;
+        let selected = &self.filtered_items[i].0;
+
+        if selected == ".. (Subir)" {
+            return None;
+        }
+
+        let display_info = self.directory_info.get(selected)?.clone();
+        let full_path = self.current_dir.join(selected);
+
+        Some((selected.clone(), display_info, full_path))
+    }
 }
 
 pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
-    let p = &cfg.palette;
-    let title = format!("Navegando: {}", model.current_path_string());
-
     let help_text = if let Some(error) = &model.error {
         format!("ERROR: {} | Press any key to continue", error)
     } else if model.is_searching {
@@ -212,32 +222,38 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
             model.search_query
         )
     } else {
-        "↑/↓: Nav | /: Buscar | c: Configuracion | Espacio: Entrar | Enter: Seleccionar".to_string()
+        "↑/↓: Nav | /: Buscar | c: Config | Espacio: Entrar | Enter: Ver".to_string()
     };
 
-    crate::components::page::draw_page(f, area, &title, &help_text, cfg, |f, chunk| {
-        if model.filtered_items.is_empty() && !model.items.is_empty() {
-            let no_matches = List::new(vec![ListItem::new("No matching directories found")]);
-            f.render_widget(no_matches, chunk);
-            return;
-        }
+    let layout = AppLayout::new(model.current_path_string(), help_text);
 
-        let items: Vec<ListItem> = model
-            .filtered_items
-            .iter()
-            .map(|(text, indices)| {
-                let display_info = model.directory_info.get(text);
-                create_directory_list_item(text, indices, display_info, p)
-            })
-            .collect();
+    layout.render(f, area, cfg, |f, inner| {
+        let panel = Panel::new().title("Directories");
 
-        let list = List::new(items).highlight_symbol(">> ").highlight_style(
-            Style::default()
-                .bg(p.get_color(&p.base02))
-                .add_modifier(ratatui::style::Modifier::BOLD),
-        );
+        panel.render(f, inner, cfg, |f, list_area| {
+            if model.filtered_items.is_empty() && !model.items.is_empty() {
+                let no_matches = List::new(vec![ListItem::new("No matching directories found")]);
+                f.render_widget(no_matches, list_area);
+                return;
+            }
 
-        f.render_stateful_widget(list, chunk, &mut model.list_state);
+            let items: Vec<ListItem> = model
+                .filtered_items
+                .iter()
+                .map(|(text, indices)| {
+                    let display_info = model.directory_info.get(text);
+                    create_directory_list_item(text, indices, display_info, cfg)
+                })
+                .collect();
+
+            let list = List::new(items).highlight_symbol(">> ").highlight_style(
+                Style::default()
+                    .bg(cfg.palette.get_color(&cfg.palette.base02))
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            );
+
+            f.render_stateful_widget(list, list_area, &mut model.list_state);
+        });
     });
 }
 
@@ -245,49 +261,42 @@ fn create_directory_list_item(
     name: &str,
     match_indices: &[usize],
     display_info: Option<&DirectoryDisplayInfo>,
-    palette: &crate::config::Palette,
+    cfg: &AppConfig,
 ) -> ListItem<'static> {
+    let p = &cfg.palette;
     let mut spans = Vec::new();
 
-    // Add visual indicator based on project type
     if name != ".. (Subir)" {
         if let Some(info) = display_info {
             let indicator = get_project_indicator(&info.project_type);
-            let style = get_project_type_style(&info.project_type, palette);
-            spans.push(Span::styled(
-                indicator.to_string(), // Convert to owned String
-                style,
-            ));
+            let style = get_project_type_style(&info.project_type, p);
+            spans.push(Span::styled(indicator.to_string(), style));
         } else {
-            spans.push(Span::raw("  ".to_string())); // Convert to owned String
+            spans.push(Span::raw("  "));
         }
     }
 
-    // Add the name with highlighted matches
     for (i, c) in name.chars().enumerate() {
         if match_indices.contains(&i) {
             spans.push(Span::styled(
                 c.to_string(),
-                Style::default()
-                    .fg(palette.get_color(&palette.base0A))
-                    .add_modifier(
-                        ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED,
-                    ),
+                Style::default().fg(p.get_color(&p.base0A)).add_modifier(
+                    ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED,
+                ),
             ));
         } else {
             spans.push(Span::raw(c.to_string()));
         }
     }
 
-    // Add version info if available
     if let Some(info) = display_info
         && let Some(versions) = &info.versions
     {
         spans.push(Span::raw("  "));
         spans.push(Span::styled(
-            versions.clone(), // Clone the string to own it
+            versions.clone(),
             Style::default()
-                .fg(palette.get_color(&palette.base03))
+                .fg(p.get_color(&p.base03))
                 .add_modifier(ratatui::style::Modifier::DIM),
         ));
     }
@@ -297,30 +306,24 @@ fn create_directory_list_item(
 
 fn get_project_indicator(project_type: &ProjectType) -> &str {
     match project_type {
-        ProjectType::FullStack => "● ", // Full circles for complete projects
-        ProjectType::Web => "◒ ",       // Half circles for web
-        ProjectType::BusinessLayer => "◓ ", // Half circles for business
-        ProjectType::GitRepository => "○ ", // Empty circle for git repos
-        ProjectType::Unknown => "  ",   // Nothing for unknown
+        ProjectType::FullStack => "● ",
+        ProjectType::Web => "◒ ",
+        ProjectType::BusinessLayer => "◓ ",
+        ProjectType::GitRepository => "○ ",
+        ProjectType::Unknown => "  ",
     }
 }
 
-fn get_project_type_style(project_type: &ProjectType, palette: &crate::config::Palette) -> Style {
+fn get_project_type_style(project_type: &ProjectType, p: &crate::config::Palette) -> Style {
     match project_type {
-        // Primary colors for our main project types
         ProjectType::FullStack => Style::default()
-            .fg(palette.get_color(&palette.base0B)) // Green - complete project
+            .fg(p.get_color(&p.base0B))
             .add_modifier(ratatui::style::Modifier::BOLD),
-
-        ProjectType::Web => Style::default().fg(palette.get_color(&palette.base0D)), // Blue - web project
-
-        ProjectType::BusinessLayer => Style::default().fg(palette.get_color(&palette.base0E)), // Magenta - business layer
-
-        // Secondary color for interesting directories
+        ProjectType::Web => Style::default().fg(p.get_color(&p.base0D)),
+        ProjectType::BusinessLayer => Style::default().fg(p.get_color(&p.base0E)),
         ProjectType::GitRepository => Style::default()
-            .fg(palette.get_color(&palette.base03)) // Dim gray for git repos
+            .fg(p.get_color(&p.base03))
             .add_modifier(ratatui::style::Modifier::DIM),
-
         ProjectType::Unknown => Style::default(),
     }
 }

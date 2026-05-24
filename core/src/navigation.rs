@@ -473,47 +473,29 @@ impl NavigationService {
             return ProjectType::Unknown;
         }
 
-        // Get the directory name to check for child projects
         let dir_name = fs.file_name(path).unwrap_or_default();
 
-        let has_web = fs.exists(&path.join(format!("web{}", dir_name)));
-        let has_bl = fs.exists(
-            &path
-                .join(format!("bl{}", dir_name))
-                .join(format!("bl{}", dir_name)), // Dos veces pq en las BL esta a dos directorios
-                                                  // de profundidad
-        );
+        // Check for Business Layer structure: {ProjectName}/bl{ProjectName}/bl{ProjectName}/*.csproj
+        let bl_path = path.join(format!("bl{}", dir_name));
+        let has_bl = fs.is_dir(&bl_path) && fs.is_dir(&bl_path.join(format!("bl{}", dir_name)));
 
-        if has_web && has_bl {
-            return ProjectType::FullStack;
-        } else if has_web {
-            return ProjectType::Web;
-        } else if has_bl {
-            return ProjectType::BusinessLayer;
-        }
+        // Check for Web structure: {ProjectName}/web{ProjectName}/package.json
+        let web_path = path.join(format!("web{}", dir_name));
+        let has_web = fs.is_dir(&web_path) && fs.exists(&web_path.join("package.json"));
 
-        // Check for .git directory
-        if fs.exists(&path.join(".git")) {
-            return ProjectType::GitRepository;
-        }
-
-        // Check for common project files
-        if fs.exists(&path.join("package.json"))
-            || fs.exists(&path.join(format!("web{}.package.json", dir_name)))
-        {
-            return ProjectType::Web;
-        }
-
-        // Check for .csproj files
-        if let Ok(files) = fs.read_dir(path) {
-            for file in files {
-                if file.extension().and_then(|s| s.to_str()) == Some("csproj") {
-                    return ProjectType::BusinessLayer;
+        match (has_web, has_bl) {
+            (true, true) => ProjectType::FullStack,
+            (true, false) => ProjectType::Web,
+            (false, true) => ProjectType::BusinessLayer,
+            (false, false) => {
+                // Check for .git directory (git repository root)
+                if fs.exists(&path.join(".git")) {
+                    ProjectType::GitRepository
+                } else {
+                    ProjectType::Unknown
                 }
             }
         }
-
-        ProjectType::Unknown
     }
 
     /// Gets display information for a directory based on its project type
@@ -534,14 +516,26 @@ impl NavigationService {
     /// Gets project versions if available
     fn get_project_versions(fs: &impl FileHandler, path: &Path) -> Option<String> {
         let dir_name = fs.file_name(path)?;
-        let versions = crate::get_current_versions(fs, path, &dir_name);
 
         let mut parts = Vec::new();
-        if let Some(web_ver) = versions.web {
-            parts.push(format!("web:{}", web_ver));
+
+        // Check for web version from package.json
+        let web_package_json = path.join(format!("web{}/package.json", dir_name));
+        if fs.exists(&web_package_json) {
+            if let Some(version) = crate::extract_version_from_package_json(fs, &web_package_json) {
+                parts.push(format!("web:{}", version));
+            }
         }
-        if let Some(bl_ver) = versions.bl {
-            parts.push(format!("bl:{}", bl_ver));
+
+        // Check for BL version from .csproj file
+        let bl_csproj = path.join(format!(
+            "bl{}/bl{}/bl{}.csproj",
+            dir_name, dir_name, dir_name
+        ));
+        if fs.exists(&bl_csproj) {
+            if let Some(version) = crate::extract_version_from_csproj(fs, &bl_csproj) {
+                parts.push(format!("bl:{}", version));
+            }
         }
 
         if parts.is_empty() {

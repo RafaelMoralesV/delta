@@ -1,5 +1,7 @@
 /target
 .bump_config.json
+test_repo
+
 # Devenv
 .devenv*
 devenv.local.nix

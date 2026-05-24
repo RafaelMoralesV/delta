@@ -1,13 +1,20 @@
+use core::{FileHandler, navigation::DirectoryDisplayInfo};
+use std::path::PathBuf;
+
 use ratatui::{
     Frame,
     crossterm::event::{self, KeyCode},
-    layout::{Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::{App, AppFocus, Message, config::AppConfig};
+use crate::{
+    App, AppFocus, Message,
+    components::layout::{AppLayout, Panel},
+    config::AppConfig,
+};
 
 #[derive(Default)]
 pub enum Selection {
@@ -23,6 +30,8 @@ pub struct ProjectModel {
     pub selected: Selection,
     pub bump_message: String,
     pub is_naming_bump: bool, // Modal toggle
+    pub is_git_repository: bool,
+    pub is_unknown_directory: bool,
 }
 
 impl ProjectModel {
@@ -33,6 +42,34 @@ impl ProjectModel {
             selected: Selection::Web,
             bump_message: "".into(),
             is_naming_bump: false,
+            is_git_repository: false,
+            is_unknown_directory: false,
+        }
+    }
+
+    pub fn from_display_info(
+        name: String,
+        info: DirectoryDisplayInfo,
+        path: PathBuf,
+        fs: &impl FileHandler,
+    ) -> Self {
+        use core::navigation::ProjectType;
+
+        match info.project_type {
+            ProjectType::FullStack | ProjectType::Web | ProjectType::BusinessLayer => {
+                let versions = core::get_current_versions(fs, &path, &name);
+                Self::new(name, versions)
+            }
+            ProjectType::GitRepository => {
+                let mut model = Self::new(name, Default::default());
+                model.is_git_repository = true;
+                model
+            }
+            ProjectType::Unknown => {
+                let mut model = Self::new(name, Default::default());
+                model.is_unknown_directory = true;
+                model
+            }
         }
     }
 }
@@ -181,6 +218,40 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
             popup_area,
         );
     }
+}
+
+pub fn view_placeholder(f: &mut Frame, area: Rect, cfg: &AppConfig) {
+    let p = &cfg.palette;
+    let layout = AppLayout::new("Project Details", "Select a directory to view details");
+
+    layout.render(f, area, cfg, |f, inner| {
+        let panel = Panel::new();
+        panel.render(f, inner, cfg, |f, inner| {
+            let text = vec![
+                Line::from(Span::styled(
+                    "📁 No Selection",
+                    Style::default()
+                        .fg(p.get_color(&p.base04))
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Use arrow keys to navigate and press Enter",
+                    Style::default().fg(p.get_color(&p.base03)),
+                )),
+                Line::from(Span::styled(
+                    "to view project details and bump versions",
+                    Style::default().fg(p.get_color(&p.base03)),
+                )),
+            ];
+
+            let paragraph = Paragraph::new(text)
+                .alignment(Alignment::Center)
+                .style(Style::default().bg(p.get_color(&p.base00)));
+
+            f.render_widget(paragraph, inner);
+        });
+    });
 }
 
 // Helper for centering the modal

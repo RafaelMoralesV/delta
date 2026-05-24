@@ -28,39 +28,19 @@ pub enum AppFocus {
 }
 
 struct App {
-    /// Pantalla en la cual estamos actualmente
     current_focused_screen: AppFocus,
-
-    /// Configuracion de la App.
     config: AppConfig,
-
-    /// Estado de la pantalla de navegacion
     navigation_state: NavModel,
-
-    /// Estado de la pantalla de vision de proyecto
     project_view_model: ProjectModel,
-
-    /// Estado de la pantalla de configuracion
     config_model: ConfigModel<'static>,
-
-    /// Cierra la sesion
     should_quit: bool,
-
-    /// Helper sencillo para no andar creandolo a cada rato. No mantiene estado.
     fs: OsFileSystem,
 }
 
 pub enum Message {
-    // Global Actions
     Quit,
-
-    // Mensajes de la pantalla de navegacion
     Navigation(screens::navigation::NavMsg),
-
-    // Mensajes de la pantalla de configuracion
     Config(screens::config::ConfigMsg),
-
-    // Mensajes de la pantalla de vision de proyecto
     Project(ProjectMsg),
 }
 
@@ -84,7 +64,6 @@ impl App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Necesario para soportar el backslash del teclado latino
     let _ = std::io::stdout().execute(PushKeyboardEnhancementFlags(
         KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
     ));
@@ -119,28 +98,64 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                 let main_area = f.area();
 
                 if main_area.width > 80 {
-                    // Seccionamos por mitades la pantalla.
-                }
+                    // Split screen layout
+                    let chunks = ratatui::layout::Layout::horizontal([
+                        ratatui::layout::Constraint::Percentage(40),
+                        ratatui::layout::Constraint::Percentage(60),
+                    ])
+                    .split(main_area);
 
-                match &mut app.current_focused_screen {
-                    AppFocus::Navigating => {
-                        screens::navigation::view(
-                            &mut app.navigation_state,
-                            f,
-                            main_area,
-                            &app.config,
-                        );
+                    // Always show navigation on left
+                    screens::navigation::view(&mut app.navigation_state, f, chunks[0], &app.config);
+
+                    // Show appropriate view on right
+                    match &app.current_focused_screen {
+                        AppFocus::ViewingProject => {
+                            screens::project_view::view(
+                                &app.project_view_model,
+                                f,
+                                chunks[1],
+                                &app.config,
+                            );
+                        }
+                        AppFocus::Configuring => {
+                            screens::config::view(&app.config_model, f, chunks[1], &app.config);
+                        }
+                        AppFocus::Navigating => {
+                            // Show preview of selected item
+                            if let Some((name, info, path)) =
+                                app.navigation_state.get_selected_preview()
+                            {
+                                let preview =
+                                    ProjectModel::from_display_info(name, info, path, &app.fs);
+                                screens::project_view::view(&preview, f, chunks[1], &app.config);
+                            } else {
+                                screens::project_view::view_placeholder(f, chunks[1], &app.config);
+                            }
+                        }
                     }
-                    AppFocus::ViewingProject => {
-                        screens::project_view::view(
-                            &app.project_view_model,
-                            f,
-                            main_area,
-                            &app.config,
-                        );
-                    }
-                    AppFocus::Configuring => {
-                        screens::config::view(&app.config_model, f, main_area, &app.config);
+                } else {
+                    // Narrow screen - full screen mode
+                    match &mut app.current_focused_screen {
+                        AppFocus::Navigating => {
+                            screens::navigation::view(
+                                &mut app.navigation_state,
+                                f,
+                                main_area,
+                                &app.config,
+                            );
+                        }
+                        AppFocus::ViewingProject => {
+                            screens::project_view::view(
+                                &app.project_view_model,
+                                f,
+                                main_area,
+                                &app.config,
+                            );
+                        }
+                        AppFocus::Configuring => {
+                            screens::config::view(&app.config_model, f, main_area, &app.config);
+                        }
                     }
                 }
             })
