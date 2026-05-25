@@ -7,7 +7,7 @@ use crate::screens::navigation::NavModel;
 use crate::screens::project_view::ProjectModel;
 use crate::{config::AppConfig, screens::project_view::ProjectMsg};
 
-use core::OsFileSystem;
+use delta_core::OsFileSystem;
 use ratatui::crossterm::ExecutableCommand;
 use ratatui::crossterm::event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags};
 use ratatui::{

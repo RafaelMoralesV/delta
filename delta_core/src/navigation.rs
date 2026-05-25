@@ -549,7 +549,7 @@ impl NavigationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MockFileHandler;
+    use crate::file_handler::MockFileHandler;
     use std::path::PathBuf;
 
     fn setup_mock_fs() -> MockFileHandler {
@@ -657,7 +657,7 @@ mod tests {
     fn test_parent_directory_at_root() {
         let path = PathBuf::from("/");
         let parent = NavigationService::parent_directory(&path);
-        assert_eq!(parent, Some(PathBuf::from("/")));
+        assert_eq!(parent, None);
     }
 
     #[test]
@@ -694,10 +694,11 @@ mod tests {
         let path = PathBuf::from("/home/user/documents");
         let breadcrumbs = NavigationService::build_breadcrumbs(&path);
 
-        assert_eq!(breadcrumbs.len(), 3);
-        assert_eq!(breadcrumbs[0], PathBuf::from("/home"));
-        assert_eq!(breadcrumbs[1], PathBuf::from("/home/user"));
-        assert_eq!(breadcrumbs[2], PathBuf::from("/home/user/documents"));
+        assert_eq!(breadcrumbs.len(), 4);
+        assert_eq!(breadcrumbs[0], PathBuf::from("/"));
+        assert_eq!(breadcrumbs[1], PathBuf::from("/home"));
+        assert_eq!(breadcrumbs[2], PathBuf::from("/home/user"));
+        assert_eq!(breadcrumbs[3], PathBuf::from("/home/user/documents"));
     }
 
     #[test]

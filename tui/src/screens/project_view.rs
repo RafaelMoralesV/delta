@@ -1,4 +1,4 @@
-use core::{FileHandler, navigation::DirectoryDisplayInfo};
+use delta_core::{FileHandler, navigation::DirectoryDisplayInfo};
 use std::path::PathBuf;
 
 use ratatui::{
@@ -26,7 +26,7 @@ pub enum Selection {
 #[derive(Default)]
 pub struct ProjectModel {
     pub name: String,
-    pub versions: core::ProjectVersions,
+    pub versions: delta_core::ProjectVersions,
     pub selected: Selection,
     pub bump_message: String,
     pub is_naming_bump: bool, // Modal toggle
@@ -35,7 +35,7 @@ pub struct ProjectModel {
 }
 
 impl ProjectModel {
-    pub fn new(name: String, versions: core::ProjectVersions) -> Self {
+    pub fn new(name: String, versions: delta_core::ProjectVersions) -> Self {
         Self {
             name,
             versions,
@@ -53,11 +53,11 @@ impl ProjectModel {
         path: PathBuf,
         fs: &impl FileHandler,
     ) -> Self {
-        use core::navigation::ProjectType;
+        use delta_core::navigation::ProjectType;
 
         match info.project_type {
             ProjectType::FullStack | ProjectType::Web | ProjectType::BusinessLayer => {
-                let versions = core::get_current_versions(fs, &path, &name);
+                let versions = delta_core::get_current_versions(fs, &path, &name);
                 Self::new(name, versions)
             }
             ProjectType::GitRepository => {
@@ -138,7 +138,7 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
 
             // Helper for the "next version" string with styling
             let render_version_line =
-                |label: &str, current: &Option<core::AppVersion>, is_selected: bool| {
+                |label: &str, current: &Option<delta_core::AppVersion>, is_selected: bool| {
                     let current_str = current.as_ref().map_or("-".into(), |v| v.to_string());
                     let next_str = current
                         .as_ref()
@@ -293,7 +293,7 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                 match model.selected {
                     Selection::Web => {
                         if let Some(current) = model.versions.web {
-                            let instructions = core::BumpInstructions {
+                            let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
                                 project_name: model.name.clone(),
@@ -307,7 +307,7 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                     }
                     Selection::Bl => {
                         if let Some(current) = model.versions.bl {
-                            let instructions = core::BumpInstructions {
+                            let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
                                 project_name: model.name.clone(),
@@ -322,7 +322,7 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                 }
 
                 // Refresh versions after bump so the UI stays in sync
-                model.versions = core::get_current_versions(
+                model.versions = delta_core::get_current_versions(
                     &app.fs,
                     &app.config.default_dir.join(&model.name),
                     &model.name,

@@ -4,7 +4,7 @@ use crate::{
     config::AppConfig,
     screens::project_view::ProjectModel,
 };
-use core::{
+use delta_core::{
     FileHandler, NavigationError, NavigationService,
     navigation::{DirectoryDisplayInfo, ProjectType},
 };
@@ -371,7 +371,7 @@ pub fn update(app: &mut App, msg: NavMsg) {
                     Ok(new_path) => {
                         if NavigationService::validate_navigation_path(&app.fs, &new_path).is_ok() {
                             let versions =
-                                core::get_current_versions(&app.fs, &new_path, &selected);
+                                delta_core::get_current_versions(&app.fs, &new_path, &selected);
 
                             app.project_view_model = ProjectModel::new(selected, versions);
                             app.current_focused_screen = AppFocus::ViewingProject;

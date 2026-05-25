@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_web_bump_success() {
-        let mut mock = MockFileHandler::new();
+        let mut mock = crate::file_handler::MockFileHandler::new();
         // Path logic: project_dir / project_name / object_name
         let base_path = get_path("root/MyProj/webMyProj");
         let pkg_path = base_path.join("package.json");
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_bl_bump_with_multiple_csproj() {
-        let mut mock = MockFileHandler::new();
+        let mut mock = crate::file_handler::MockFileHandler::new();
         let project_root = get_path("root/MyProj/blMyProj");
 
         let root_clone = project_root.clone();
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_error_handling_when_file_missing() {
-        let mut mock = MockFileHandler::new();
+        let mut mock = crate::file_handler::MockFileHandler::new();
 
         // If update_readme fails to WRITE, it returns error.
         // Note: Your current code calls read_to_string, ignores the error with unwrap_or_default,

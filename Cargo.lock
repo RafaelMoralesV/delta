@@ -175,19 +175,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "fuzzy-matcher",
- "mockall",
- "regex",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -281,6 +268,19 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "delta_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fuzzy-matcher",
+ "mockall",
+ "regex",
+ "serde_json",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1599,7 +1599,7 @@ name = "tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "core",
+ "delta_core",
  "dirs",
  "ratatui",
  "ratatui-textarea",
