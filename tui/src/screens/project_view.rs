@@ -222,25 +222,28 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
 
 pub fn view_placeholder(f: &mut Frame, area: Rect, cfg: &AppConfig) {
     let p = &cfg.palette;
-    let layout = AppLayout::new("Project Details", "Select a directory to view details");
+    let layout = AppLayout::new(
+        "Detalles del proyecto",
+        "Selecciona un proyecto para ver sus detalles",
+    );
 
     layout.render(f, area, cfg, |f, inner| {
         let panel = Panel::new();
         panel.render(f, inner, cfg, |f, inner| {
             let text = vec![
                 Line::from(Span::styled(
-                    "📁 No Selection",
+                    "Sin seleccion",
                     Style::default()
                         .fg(p.get_color(&p.base04))
                         .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(
-                    "Use arrow keys to navigate and press Enter",
+                    "Usa las flechas para navegar y enter para seleccionar,",
                     Style::default().fg(p.get_color(&p.base03)),
                 )),
                 Line::from(Span::styled(
-                    "to view project details and bump versions",
+                    "ver detalles y subir su version",
                     Style::default().fg(p.get_color(&p.base03)),
                 )),
             ];

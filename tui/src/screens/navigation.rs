@@ -81,7 +81,13 @@ pub fn handle_key_event(key: event::KeyEvent, state: &NavModel) -> Option<Messag
         KeyCode::Char(' ') => NavMsg::MoveInto,
         KeyCode::Char('k') => NavMsg::MoveUp,
         KeyCode::Char('j') => NavMsg::MoveDown,
-        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => return Some(Message::Quit),
+        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
+            if state.search_query.is_empty() {
+                return Some(Message::Quit);
+            } else {
+                NavMsg::EndSearch(false)
+            }
+        }
         _ => return None,
     };
 
@@ -198,7 +204,7 @@ impl NavModel {
 
     pub fn get_selected_preview(&self) -> Option<(String, DirectoryDisplayInfo, PathBuf)> {
         let i = self.list_state.selected()?;
-        let selected = &self.filtered_items[i].0;
+        let selected = &self.filtered_items.get(i)?.0;
 
         if selected == ".. (Subir)" {
             return None;
@@ -230,7 +236,13 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
 
         panel.render(f, inner, cfg, |f, list_area| {
             if model.filtered_items.is_empty() && !model.items.is_empty() {
-                let no_matches = List::new(vec![ListItem::new("No matching directories found")]);
+                let msg = if model.search_query.is_empty() {
+                    "No se encontró la carpeta. Esto no deberia pasar nunca. Que hiciste wtf"
+                } else {
+                    "La búsqueda no arrojó ningún resultado! meper.d0nas?"
+                };
+
+                let no_matches = List::new(vec![ListItem::new(msg)]);
                 f.render_widget(no_matches, list_area);
                 return;
             }
