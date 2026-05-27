@@ -10,13 +10,15 @@ use crate::config::AppConfig;
 pub struct AppLayout {
     pub title: String,
     pub footer: String,
+    pub is_focused: bool,
 }
 
 impl AppLayout {
-    pub fn new(title: impl Into<String>, footer: impl Into<String>) -> Self {
+    pub fn new(title: impl Into<String>, footer: impl Into<String>, is_focused: bool) -> Self {
         Self {
             title: title.into(),
             footer: footer.into(),
+            is_focused,
         }
     }
 
@@ -30,12 +32,18 @@ impl AppLayout {
         // Create the main layout
         let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
 
+        let (background_color, border_color) = if self.is_focused {
+            (p.get_color(&p.base00), p.get_color(&p.base0D))
+        } else {
+            (p.get_color(&p.base01), p.get_color(&p.base03))
+        };
+
         // Render the main block with border
         let block = Block::default()
             .title(format!(" {} ", self.title))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(p.get_color(&p.base0D)))
-            .style(Style::default().bg(p.get_color(&p.base00)));
+            .border_style(Style::default().fg(border_color))
+            .style(Style::default().bg(background_color));
 
         let inner_area = block.inner(chunks[0]);
         f.render_widget(block, chunks[0]);

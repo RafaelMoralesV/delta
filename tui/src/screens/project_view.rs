@@ -12,7 +12,7 @@ use ratatui::{
 
 use crate::{
     App, AppFocus, Message,
-    components::layout::{AppLayout, Panel},
+    components::layout::{AppLayout, Modal, Panel},
     config::AppConfig,
 };
 
@@ -118,17 +118,23 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
     Some(msg.into())
 }
 
-pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
-    let p = &cfg.palette;
-    let title = format!("Proyecto: {}", model.name);
+pub fn view(state: &App, f: &mut Frame, area: Rect) {
+    let model = &state.project_view_model;
+    let cfg = &state.config;
 
-    crate::components::page::draw_page(
-        f,
-        area,
-        &title,
-        "B/Enter: Bump | Esc: Atrás",
-        cfg,
-        |f, chunk| {
+    let title = format!("Proyecto: {}", model.name);
+    let p = &cfg.palette;
+
+    let layout = AppLayout::new(
+        title,
+        "",
+        matches!(state.current_focused_screen, AppFocus::ViewingProject),
+    );
+
+    layout.render(f, area, cfg, |f, inner| {
+        let panel = Panel::new();
+
+        panel.render(f, inner, cfg, |f, chunk| {
             let chunks = Layout::vertical([
                 Constraint::Length(3),
                 Constraint::Length(3),
@@ -196,28 +202,19 @@ pub fn view(model: &ProjectModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
                 ),
                 chunks[1],
             );
-        },
-    );
+        });
 
-    // --- Modal Logic ---
-    if model.is_naming_bump {
-        let popup_area = centered_rect(60, 20, area);
-        f.render_widget(ratatui::widgets::Clear, popup_area);
+        // --- Modal Logic ---
+        if model.is_naming_bump {
+            let modal = Modal::new("Bump");
 
-        let block = Block::default()
-            .title(" Mensaje ")
-            .borders(Borders::ALL)
-            // base09 (Orange) is great for "Action Required" modals
-            .border_style(Style::default().fg(p.get_color(&p.base09)))
-            .style(Style::default().bg(p.get_color(&p.base01))); // Slightly offset from main bg
+            modal.render(f, area, cfg, |f, popup_area| {
+                f.render_widget(ratatui::widgets::Clear, popup_area);
 
-        f.render_widget(
-            Paragraph::new(model.bump_message.as_str())
-                .block(block)
-                .style(Style::default().fg(p.get_color(&p.base05))),
-            popup_area,
-        );
-    }
+                f.render_widget(Paragraph::new(model.bump_message.as_str()), popup_area);
+            });
+        }
+    });
 }
 
 pub fn view_placeholder(f: &mut Frame, area: Rect, cfg: &AppConfig) {
@@ -225,11 +222,13 @@ pub fn view_placeholder(f: &mut Frame, area: Rect, cfg: &AppConfig) {
     let layout = AppLayout::new(
         "Detalles del proyecto",
         "Selecciona un proyecto para ver sus detalles",
+        false,
     );
 
-    layout.render(f, area, cfg, |f, inner| {
+    layout.render(f, area, cfg, |f, chunk| {
         let panel = Panel::new();
-        panel.render(f, inner, cfg, |f, inner| {
+
+        panel.render(f, chunk, cfg, |f, inner| {
             let text = vec![
                 Line::from(Span::styled(
                     "Sin seleccion",
@@ -248,34 +247,11 @@ pub fn view_placeholder(f: &mut Frame, area: Rect, cfg: &AppConfig) {
                 )),
             ];
 
-            let paragraph = Paragraph::new(text)
-                .alignment(Alignment::Center)
-                .style(Style::default().bg(p.get_color(&p.base00)));
+            let paragraph = Paragraph::new(text).alignment(Alignment::Center);
 
             f.render_widget(paragraph, inner);
         });
     });
-}
-
-// Helper for centering the modal
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Vertical)
-        .constraints([
-            ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
-            ratatui::layout::Constraint::Percentage(percent_y),
-            ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Horizontal)
-        .constraints([
-            ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
-            ratatui::layout::Constraint::Percentage(percent_x),
-            ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }
 
 pub fn update(app: &mut App, msg: ProjectMsg) {

@@ -217,7 +217,9 @@ impl NavModel {
     }
 }
 
-pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
+pub fn view(state: &mut App, f: &mut Frame, area: Rect) {
+    let model = &mut state.navigation_state;
+    let cfg = &state.config;
     let help_text = if let Some(error) = &model.error {
         format!("ERROR: {} | Press any key to continue", error)
     } else if model.is_searching {
@@ -229,10 +231,14 @@ pub fn view(model: &mut NavModel, f: &mut Frame, area: Rect, cfg: &AppConfig) {
         "↑/↓: Nav | /: Buscar | c: Config | Espacio: Entrar | Enter: Ver".to_string()
     };
 
-    let layout = AppLayout::new(model.current_path_string(), help_text);
+    let layout = AppLayout::new(
+        model.current_path_string(),
+        help_text,
+        matches!(state.current_focused_screen, AppFocus::Navigating),
+    );
 
     layout.render(f, area, cfg, |f, inner| {
-        let panel = Panel::new().title("Directories");
+        let panel = Panel::new().title("Carpetas");
 
         panel.render(f, inner, cfg, |f, list_area| {
             if model.filtered_items.is_empty() && !model.items.is_empty() {

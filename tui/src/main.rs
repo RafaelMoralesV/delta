@@ -106,17 +106,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                     .split(main_area);
 
                     // Always show navigation on left
-                    screens::navigation::view(&mut app.navigation_state, f, chunks[0], &app.config);
+                    screens::navigation::view(app, f, chunks[0]);
 
                     // Show appropriate view on right
                     match &app.current_focused_screen {
                         AppFocus::ViewingProject => {
-                            screens::project_view::view(
-                                &app.project_view_model,
-                                f,
-                                chunks[1],
-                                &app.config,
-                            );
+                            screens::project_view::view(&app, f, chunks[1]);
                         }
                         AppFocus::Configuring => {
                             screens::config::view(&app.config_model, f, chunks[1], &app.config);
@@ -126,9 +121,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                             if let Some((name, info, path)) =
                                 app.navigation_state.get_selected_preview()
                             {
-                                let preview =
+                                app.project_view_model =
                                     ProjectModel::from_display_info(name, info, path, &app.fs);
-                                screens::project_view::view(&preview, f, chunks[1], &app.config);
+                                screens::project_view::view(&app, f, chunks[1]);
                             } else {
                                 screens::project_view::view_placeholder(f, chunks[1], &app.config);
                             }
@@ -138,20 +133,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                     // Narrow screen - full screen mode
                     match &mut app.current_focused_screen {
                         AppFocus::Navigating => {
-                            screens::navigation::view(
-                                &mut app.navigation_state,
-                                f,
-                                main_area,
-                                &app.config,
-                            );
+                            screens::navigation::view(app, f, main_area);
                         }
                         AppFocus::ViewingProject => {
-                            screens::project_view::view(
-                                &app.project_view_model,
-                                f,
-                                main_area,
-                                &app.config,
-                            );
+                            screens::project_view::view(&app, f, main_area);
                         }
                         AppFocus::Configuring => {
                             screens::config::view(&app.config_model, f, main_area, &app.config);
