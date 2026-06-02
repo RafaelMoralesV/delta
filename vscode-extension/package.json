@@ -1,0 +1,67 @@
+{
+  "name": "delta-sonda-fin700",
+  "displayName": "Delta Fin700",
+  "description": "Launch the Delta TUI application in the integrated terminal",
+  "version": "0.1.0",
+  "publisher": "RafaelMorales",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["delta", "tui", "terminal", "navigator"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "os": ["win32"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "delta.launch",
+        "title": "Launch Delta",
+        "category": "Delta",
+        "icon": "$(terminal)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "delta.launch" }
+      ],
+      "editor/title": [
+        { "command": "delta.launch", "group": "navigation" }
+      ]
+    },
+    "configuration": {
+      "title": "Delta",
+      "properties": {
+        "delta.reuseTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reuse the existing Delta terminal tab instead of opening a new one each time."
+        },
+        "delta.terminalName": {
+          "type": "string",
+          "default": "Delta",
+          "description": "Name shown on the terminal tab."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "delta.launch",
+        "key": "ctrl+alt+d",
+        "when": "!terminalFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
