@@ -1,5 +1,6 @@
 use delta_core::{FileHandler, navigation::DirectoryDisplayInfo};
 use ratatui_textarea::TextArea;
+use ratatui_textarea::WrapMode;
 use std::path::PathBuf;
 
 use ratatui::{
@@ -30,22 +31,29 @@ pub struct ProjectModel {
     pub versions: delta_core::ProjectVersions,
     pub selected: Selection,
     pub bump_message: TextArea<'static>,
-    pub is_naming_bump: bool, // Modal toggle
+    pub name_input: TextArea<'static>,
+    pub bump_focus: BumpFocus,
+    pub is_naming_bump: bool,
     pub is_git_repository: bool,
     pub is_unknown_directory: bool,
 }
 
+#[derive(Default, PartialEq)]
+pub enum BumpFocus {
+    #[default]
+    Description,
+    Name,
+}
+
 impl ProjectModel {
     pub fn new(name: String, versions: delta_core::ProjectVersions) -> Self {
-        let textarea = TextArea::default();
         Self {
             name,
             versions,
-            selected: Selection::Web,
-            bump_message: textarea,
             is_naming_bump: false,
             is_git_repository: false,
             is_unknown_directory: false,
+            ..Default::default()
         }
     }
 
@@ -83,7 +91,9 @@ pub enum ProjectMsg {
     PrepareBumpSingle,
     ConfirmBump,
     CancelBump,
+    ToggleBumpFocus,
     TextAreaInput(event::KeyEvent),
+    NameInput(event::KeyEvent),
 }
 
 impl From<ProjectMsg> for Message {
@@ -97,7 +107,11 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
         let msg = match key.code {
             KeyCode::Enter => ProjectMsg::ConfirmBump,
             KeyCode::Esc => ProjectMsg::CancelBump,
-            _ => ProjectMsg::TextAreaInput(key),
+            KeyCode::Tab => ProjectMsg::ToggleBumpFocus,
+            _ => match model.bump_focus {
+                BumpFocus::Description => ProjectMsg::TextAreaInput(key),
+                BumpFocus::Name => ProjectMsg::NameInput(key),
+            },
         };
         return Some(msg.into());
     }
@@ -202,8 +216,51 @@ pub fn view(state: &App, f: &mut Frame, area: Rect) {
         // --- Modal Logic ---
         if model.is_naming_bump {
             let modal = Modal::new("Bump");
-            modal.render(f, area, cfg, |f, popup_area| {
-                f.render_widget(&model.bump_message, popup_area);
+
+            const NAME_BOX_HEIGHT: u16 = 3; // 1 line + top/bottom border
+            const MIN_DESC_ROWS: u16 = 5;
+            const MAX_DESC_ROWS: u16 = 10;
+            const MODAL_BORDER: u16 = 2; // Modal's own outer top/bottom border
+
+            let content_width = modal.inner_width(area).saturating_sub(2);
+            let desc_rows = wrapped_row_count(&model.bump_message, content_width)
+                .clamp(MIN_DESC_ROWS, MAX_DESC_ROWS);
+            let desc_box_height = desc_rows + 2; // + top/bottom border
+
+            let total_height = NAME_BOX_HEIGHT + desc_box_height + MODAL_BORDER;
+
+            modal.render_dynamic(f, area, cfg, total_height, |f, popup_area| {
+                let rows = Layout::vertical([
+                    Constraint::Length(NAME_BOX_HEIGHT),
+                    Constraint::Length(desc_box_height),
+                ])
+                .split(popup_area);
+
+                let name_style = if model.bump_focus == BumpFocus::Name {
+                    Style::default().fg(p.get_color(&p.base0B))
+                } else {
+                    Style::default().fg(p.get_color(&p.base03))
+                };
+                let desc_style = if model.bump_focus == BumpFocus::Description {
+                    Style::default().fg(p.get_color(&p.base0B))
+                } else {
+                    Style::default().fg(p.get_color(&p.base03))
+                };
+
+                let name_block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Nombre (Tab para editar)")
+                    .border_style(name_style);
+                let desc_block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Mensaje")
+                    .border_style(desc_style);
+
+                f.render_widget(&model.name_input, name_block.inner(rows[0]));
+                f.render_widget(name_block, rows[0]);
+
+                f.render_widget(&model.bump_message, desc_block.inner(rows[1]));
+                f.render_widget(desc_block, rows[1]);
             });
         }
     });
@@ -254,24 +311,40 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
             ProjectMsg::MoveDown => model.selected = Selection::Bl,
             ProjectMsg::PrepareBumpSingle => {
                 model.is_naming_bump = true;
-                model.bump_message = TextArea::default(); // no .clear() on TextArea
+                model.bump_message = TextArea::default();
+                model.bump_message.set_wrap_mode(WrapMode::WordOrGlyph);
+                model.name_input = TextArea::new(vec![model.name.clone()]);
+                model
+                    .name_input
+                    .move_cursor(ratatui_textarea::CursorMove::End);
+                model.bump_focus = BumpFocus::Description;
+            }
+            ProjectMsg::ToggleBumpFocus => {
+                model.bump_focus = match model.bump_focus {
+                    BumpFocus::Description => BumpFocus::Name,
+                    BumpFocus::Name => BumpFocus::Description,
+                };
             }
             ProjectMsg::TextAreaInput(key) => {
                 model.bump_message.input(key);
             }
+            ProjectMsg::NameInput(key) => {
+                model.name_input.input(key);
+            }
             ProjectMsg::ConfirmBump => {
+                let project_name = model.name_input.lines().join("");
+
                 match model.selected {
                     Selection::Web => {
                         if let Some(current) = model.versions.web {
                             let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
-                                project_name: model.name.clone(), // This is what the new textarea should handle
+                                project_name: project_name.clone(),
                                 description: model.bump_message.lines().join("\n"),
                                 version_original: current,
                                 is_web_project: true,
                             };
-
                             let _ = instructions.execute_bump(&app.fs);
                         }
                     }
@@ -280,12 +353,11 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                             let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
-                                project_name: model.name.clone(), // Same here
+                                project_name: project_name.clone(),
                                 description: model.bump_message.lines().join("\n"),
                                 version_original: current,
                                 is_web_project: false,
                             };
-
                             let _ = instructions.execute_bump(&app.fs);
                         }
                     }
@@ -302,4 +374,23 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
             ProjectMsg::Back => app.current_focused_screen = AppFocus::Navigating,
         }
     }
+}
+
+/// Approximate number of *visual* rows `WrapMode::WordOrGlyph` will render
+/// this textarea's content into, given an inner width in columns.
+fn wrapped_row_count(textarea: &TextArea, width: u16) -> u16 {
+    let width = width.max(1) as usize;
+    let rows: usize = textarea
+        .lines()
+        .iter()
+        .map(|line| {
+            let len = line.chars().count();
+            if len == 0 {
+                1
+            } else {
+                (len + width - 1) / width // ceil division
+            }
+        })
+        .sum();
+    rows.max(1) as u16
 }

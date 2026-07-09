@@ -149,6 +149,37 @@ impl Modal {
         content(f, inner_area);
     }
 
+    pub fn render_dynamic<F>(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        config: &AppConfig,
+        height: u16,
+        content: F,
+    ) where
+        F: FnOnce(&mut Frame, Rect),
+    {
+        let p = &config.palette;
+
+        let popup_area = self.centered_rect_fixed_height(area, height);
+
+        f.render_widget(Clear, popup_area);
+
+        let block = Block::default()
+            .title(format!(" {} ", self.title))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(p.get_color(&p.base09)))
+            .style(Style::default().bg(p.get_color(&p.base01)));
+
+        let inner_area = block.inner(popup_area);
+        f.render_widget(block, popup_area);
+        content(f, inner_area);
+    }
+
+    pub fn inner_width(&self, area: Rect) -> u16 {
+        (area.width * self.width_percent / 100).saturating_sub(2) // -2 for L/R borders
+    }
+
     fn centered_rect(&self, r: Rect) -> Rect {
         let popup_layout = Layout::default()
             .direction(ratatui::layout::Direction::Vertical)
@@ -156,6 +187,28 @@ impl Modal {
                 Constraint::Percentage((100 - self.height_percent) / 2),
                 Constraint::Percentage(self.height_percent),
                 Constraint::Percentage((100 - self.height_percent) / 2),
+            ])
+            .split(r);
+
+        Layout::default()
+            .direction(ratatui::layout::Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage((100 - self.width_percent) / 2),
+                Constraint::Percentage(self.width_percent),
+                Constraint::Percentage((100 - self.width_percent) / 2),
+            ])
+            .split(popup_layout[1])[1]
+    }
+
+    fn centered_rect_fixed_height(&self, r: Rect, height: u16) -> Rect {
+        let height = height.min(r.height);
+
+        let popup_layout = Layout::default()
+            .direction(ratatui::layout::Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(height),
+                Constraint::Min(0),
             ])
             .split(r);
 
