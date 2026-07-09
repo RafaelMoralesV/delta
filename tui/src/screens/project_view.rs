@@ -1,4 +1,5 @@
 use delta_core::{FileHandler, navigation::DirectoryDisplayInfo};
+use ratatui_textarea::TextArea;
 use std::path::PathBuf;
 
 use ratatui::{
@@ -28,7 +29,7 @@ pub struct ProjectModel {
     pub name: String,
     pub versions: delta_core::ProjectVersions,
     pub selected: Selection,
-    pub bump_message: String,
+    pub bump_message: TextArea<'static>,
     pub is_naming_bump: bool, // Modal toggle
     pub is_git_repository: bool,
     pub is_unknown_directory: bool,
@@ -36,11 +37,12 @@ pub struct ProjectModel {
 
 impl ProjectModel {
     pub fn new(name: String, versions: delta_core::ProjectVersions) -> Self {
+        let textarea = TextArea::default();
         Self {
             name,
             versions,
             selected: Selection::Web,
-            bump_message: "".into(),
+            bump_message: textarea,
             is_naming_bump: false,
             is_git_repository: false,
             is_unknown_directory: false,
@@ -79,9 +81,9 @@ pub enum ProjectMsg {
     MoveUp,
     MoveDown,
     PrepareBumpSingle,
-    UpdateInput(String),
     ConfirmBump,
     CancelBump,
+    TextAreaInput(event::KeyEvent),
 }
 
 impl From<ProjectMsg> for Message {
@@ -95,15 +97,8 @@ pub fn handle_key_event(key: event::KeyEvent, model: &ProjectModel) -> Option<Me
         let msg = match key.code {
             KeyCode::Enter => ProjectMsg::ConfirmBump,
             KeyCode::Esc => ProjectMsg::CancelBump,
-            KeyCode::Char(c) => ProjectMsg::UpdateInput(format!("{}{}", model.bump_message, c)),
-            KeyCode::Backspace => {
-                let mut s = model.bump_message.clone();
-                s.pop();
-                ProjectMsg::UpdateInput(s)
-            }
-            _ => return None,
+            _ => ProjectMsg::TextAreaInput(key),
         };
-
         return Some(msg.into());
     }
 
@@ -207,17 +202,8 @@ pub fn view(state: &App, f: &mut Frame, area: Rect) {
         // --- Modal Logic ---
         if model.is_naming_bump {
             let modal = Modal::new("Bump");
-
             modal.render(f, area, cfg, |f, popup_area| {
-                f.render_widget(ratatui::widgets::Clear, popup_area);
-
-                // Define a width based on your popup area
-                let width = popup_area.width as usize - 2; // Subtract borders
-
-                // Wrap the text dynamically
-                let wrapped_text = textwrap::wrap(&model.bump_message, width).join("\n");
-
-                f.render_widget(Paragraph::new(wrapped_text), popup_area);
+                f.render_widget(&model.bump_message, popup_area);
             });
         }
     });
@@ -268,9 +254,11 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
             ProjectMsg::MoveDown => model.selected = Selection::Bl,
             ProjectMsg::PrepareBumpSingle => {
                 model.is_naming_bump = true;
-                model.bump_message.clear();
+                model.bump_message = TextArea::default(); // no .clear() on TextArea
             }
-            ProjectMsg::UpdateInput(s) => model.bump_message = s,
+            ProjectMsg::TextAreaInput(key) => {
+                model.bump_message.input(key);
+            }
             ProjectMsg::ConfirmBump => {
                 match model.selected {
                     Selection::Web => {
@@ -278,8 +266,8 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                             let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
-                                project_name: model.name.clone(),
-                                description: model.bump_message.clone(),
+                                project_name: model.name.clone(), // This is what the new textarea should handle
+                                description: model.bump_message.lines().join("\n"),
                                 version_original: current,
                                 is_web_project: true,
                             };
@@ -292,8 +280,8 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                             let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
-                                project_name: model.name.clone(),
-                                description: model.bump_message.clone(),
+                                project_name: model.name.clone(), // Same here
+                                description: model.bump_message.lines().join("\n"),
                                 version_original: current,
                                 is_web_project: false,
                             };
@@ -303,7 +291,6 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                     }
                 }
 
-                // Refresh versions after bump so the UI stays in sync
                 model.versions = delta_core::get_current_versions(
                     &app.fs,
                     &app.config.default_dir.join(&model.name),
