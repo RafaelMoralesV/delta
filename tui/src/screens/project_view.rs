@@ -211,7 +211,13 @@ pub fn view(state: &App, f: &mut Frame, area: Rect) {
             modal.render(f, area, cfg, |f, popup_area| {
                 f.render_widget(ratatui::widgets::Clear, popup_area);
 
-                f.render_widget(Paragraph::new(model.bump_message.as_str()), popup_area);
+                // Define a width based on your popup area
+                let width = popup_area.width as usize - 2; // Subtract borders
+
+                // Wrap the text dynamically
+                let wrapped_text = textwrap::wrap(&model.bump_message, width).join("\n");
+
+                f.render_widget(Paragraph::new(wrapped_text), popup_area);
             });
         }
     });
