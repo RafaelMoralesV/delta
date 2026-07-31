@@ -2,16 +2,25 @@
   "name": "delta-sonda-fin700",
   "displayName": "Delta Fin700",
   "description": "Launch the Delta TUI application in the integrated terminal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "RafaelMorales",
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
-  "keywords": ["delta", "tui", "terminal", "navigator"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "delta",
+    "tui",
+    "terminal",
+    "navigator"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
-  "os": ["win32"],
+  "os": [
+    "win32"
+  ],
   "contributes": {
     "commands": [
       {
@@ -23,10 +32,15 @@
     ],
     "menus": {
       "commandPalette": [
-        { "command": "delta.launch" }
+        {
+          "command": "delta.launch"
+        }
       ],
       "editor/title": [
-        { "command": "delta.launch", "group": "navigation" }
+        {
+          "command": "delta.launch",
+          "group": "navigation"
+        }
       ]
     },
     "configuration": {
