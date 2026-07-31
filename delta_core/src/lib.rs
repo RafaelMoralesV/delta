@@ -122,6 +122,9 @@ pub struct BumpInstructions {
     /// Nombre del proyecto a escribir
     pub project_name: String,
 
+    /// Objeto que fue modificado.
+    pub object: String,
+
     /// Descripcion o mensaje del bump.
     pub description: String,
 
@@ -154,7 +157,7 @@ impl BumpInstructions {
             &project_path.join("README.md"),
             &target_version.to_string(),
             &self.author,
-            &object_name,
+            &self.object,
             &date_str,
             &self.description,
         )?;
@@ -291,6 +294,7 @@ mod tests {
             author: "Tester".into(),
             project_dir: get_path("root"),
             project_name: "MyProj".into(),
+            object: "MyProj".into(),
             description: "Fixing stuff".into(),
             version_original: AppVersion::parse("1.0.0.0").unwrap(),
             is_web_project: true,
@@ -334,6 +338,7 @@ mod tests {
             author: "Dev".into(),
             project_dir: get_path("root"),
             project_name: "MyProj".into(),
+            object: "MyProj".into(),
             description: "Major patch".into(),
             version_original: AppVersion::parse("2.1.99.0").unwrap(),
             is_web_project: false,
@@ -359,6 +364,7 @@ mod tests {
             author: "Tester".into(),
             project_dir: get_path("root"),
             project_name: "MyProj".into(),
+            object: "MyProj".into(),
             description: "Fail test".into(),
             version_original: AppVersion::parse("1.0.0.0").unwrap(),
             is_web_project: true,

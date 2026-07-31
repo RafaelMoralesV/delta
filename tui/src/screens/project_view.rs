@@ -332,7 +332,7 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                 model.name_input.input(key);
             }
             ProjectMsg::ConfirmBump => {
-                let project_name = model.name_input.lines().join("");
+                let object = model.name_input.lines().join("");
 
                 match model.selected {
                     Selection::Web => {
@@ -340,7 +340,8 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                             let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
-                                project_name: project_name.clone(),
+                                object: object.clone(),
+                                project_name: model.name.clone(),
                                 description: model.bump_message.lines().join("\n"),
                                 version_original: current,
                                 is_web_project: true,
@@ -353,7 +354,8 @@ pub fn update(app: &mut App, msg: ProjectMsg) {
                             let instructions = delta_core::BumpInstructions {
                                 author: app.config.username.clone(),
                                 project_dir: app.navigation_state.current_dir.clone(),
-                                project_name: project_name.clone(),
+                                object: object.clone(),
+                                project_name: model.name.clone(),
                                 description: model.bump_message.lines().join("\n"),
                                 version_original: current,
                                 is_web_project: false,
