@@ -1,4 +1,4 @@
-pub use crate::file_handler::{FileHandler, OsFileSystem};
+pub use crate::file_handler::{FileHandler, OsFileSystem, RecordingFileHandler};
 use anyhow::Context;
 use anyhow::{Result, anyhow};
 use chrono::Local;
@@ -143,7 +143,62 @@ impl BumpInstructions {
     /// - Se determina si es web o bl.
     /// - Se actualiza el Readme a partir del BumpInstructions
     /// - Dependiendo del tipo de proyecto, se actualiza package.json o .csproj
-    pub fn execute_bump(self, fs: &impl FileHandler) -> Result<()> {
+    ///
+    /// Primero calcula todo en memoria (`plan_bump`), luego escribe los archivos de version y el
+    /// README al final. Si una escritura falla, restaura los archivos ya escritos, para no dejar
+    /// un README con una version que no se aplico (y que un reintento duplicaria).
+    ///
+    /// Devuelve las rutas escritas, en orden.
+    pub fn execute_bump(&self, fs: &impl FileHandler) -> Result<Vec<PathBuf>> {
+        let writes = self.plan_bump(fs)?;
+
+        // Contenido original para poder deshacer. El README va al final, nunca hay que deshacerlo.
+        let originals: Vec<Option<String>> = writes
+            .iter()
+            .map(|(p, _)| fs.read_to_string(p).ok())
+            .collect();
+
+        for (i, (path, content)) in writes.iter().enumerate() {
+            if let Err(err) = fs.write(path, content) {
+                let mut rollback_errors = Vec::new();
+                for (j, (done, _)) in writes[..i].iter().enumerate() {
+                    if let Some(orig) = &originals[j]
+                        && let Err(e) = fs.write(done, orig)
+                    {
+                        rollback_errors.push(format!("{:?}: {}", done, e));
+                    }
+                }
+                if rollback_errors.is_empty() {
+                    return Err(err.context("Bump cancelado, no se modifico ningun archivo"));
+                }
+                return Err(err.context(format!(
+                    "Bump fallido y no se pudieron restaurar: {}",
+                    rollback_errors.join("; ")
+                )));
+            }
+        }
+
+        Ok(writes.into_iter().map(|(p, _)| p).collect())
+    }
+
+    /// Calcula las escrituras de un bump sin tocar el disco: `(ruta, contenido nuevo)`, con los
+    /// archivos de version primero y el README al final.
+    pub fn plan_bump(&self, fs: &impl FileHandler) -> Result<Vec<(PathBuf, String)>> {
+        let rec = RecordingFileHandler::new(fs, true);
+        self.write_bump(&rec)?;
+        let mut writes = rec.writes();
+        // write_bump escribe el README primero; lo movemos al final.
+        let readme_at = writes
+            .iter()
+            .position(|(p, _)| p.file_name().is_some_and(|n| n == "README.md"));
+        if let Some(i) = readme_at {
+            let readme = writes.remove(i);
+            writes.push(readme);
+        }
+        Ok(writes)
+    }
+
+    fn write_bump(&self, fs: &impl FileHandler) -> Result<()> {
         let target_version = self.version_original.bumped();
         let date_str = Local::now().format("%d/%m/%Y").to_string();
 
@@ -348,17 +403,11 @@ mod tests {
     }
 
     #[test]
-    fn test_error_handling_when_file_missing() {
+    fn test_missing_package_json_writes_nothing() {
         let mut mock = crate::file_handler::MockFileHandler::new();
-
-        // If update_readme fails to WRITE, it returns error.
-        // Note: Your current code calls read_to_string, ignores the error with unwrap_or_default,
-        // then tries to WRITE. We must mock that write to fail.
         mock.expect_read_to_string()
             .returning(|_| Err(anyhow!("Read Fail")));
-
-        mock.expect_write()
-            .returning(|_, _| Err(anyhow!("FileSystem Error: Access Denied")));
+        mock.expect_write().never();
 
         let inst = BumpInstructions {
             author: "Tester".into(),
@@ -370,14 +419,77 @@ mod tests {
             is_web_project: true,
         };
 
-        let result = inst.execute_bump(&mock);
+        assert!(inst.execute_bump(&mock).is_err());
+    }
 
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Failed to update README")
-        );
+    #[test]
+    fn test_failed_version_write_skips_readme() {
+        let mut mock = crate::file_handler::MockFileHandler::new();
+        let base = get_path("root/MyProj/webMyProj");
+        mock.expect_read_to_string()
+            .returning(|_| Ok(r#""version":"1.0.0.0""#.to_string()));
+        mock.expect_write()
+            .with(eq(base.join("package.json")), always())
+            .times(1)
+            .returning(|_, _| Err(anyhow!("Access Denied")));
+        mock.expect_write()
+            .with(eq(base.join("README.md")), always())
+            .never();
+
+        let inst = BumpInstructions {
+            author: "Tester".into(),
+            project_dir: get_path("root"),
+            project_name: "MyProj".into(),
+            object: "MyProj".into(),
+            description: "x".into(),
+            version_original: AppVersion::parse("1.0.0.0").unwrap(),
+            is_web_project: true,
+        };
+
+        let err = inst.execute_bump(&mock).unwrap_err();
+        assert!(format!("{:#}", err).contains("no se modifico ningun archivo"));
+    }
+
+    #[test]
+    fn test_failed_second_csproj_restores_first() {
+        let mut mock = crate::file_handler::MockFileHandler::new();
+        let root = get_path("root/MyProj/blMyProj");
+        let first = root.join("a.csproj");
+        let second = root.join("b.csproj");
+        let (f, s) = (first.clone(), second.clone());
+        mock.expect_read_dir()
+            .returning(move |_| Ok(vec![f.clone(), s.clone()]));
+        mock.expect_read_to_string()
+            .returning(|_| Ok("<Version>1.0.0.0</Version>".to_string()));
+
+        let mut seq = mockall::Sequence::new();
+        mock.expect_write()
+            .with(eq(first.clone()), str::contains("1.0.1.0"))
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_, _| Ok(()));
+        mock.expect_write()
+            .with(eq(second), always())
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_, _| Err(anyhow!("locked")));
+        // Rollback del primero con su contenido original.
+        mock.expect_write()
+            .with(eq(first), eq("<Version>1.0.0.0</Version>"))
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_, _| Ok(()));
+
+        let inst = BumpInstructions {
+            author: "Dev".into(),
+            project_dir: get_path("root"),
+            project_name: "MyProj".into(),
+            object: "MyProj".into(),
+            description: "x".into(),
+            version_original: AppVersion::parse("1.0.0.0").unwrap(),
+            is_web_project: false,
+        };
+
+        assert!(inst.execute_bump(&mock).is_err());
     }
 }

@@ -7,7 +7,7 @@
 #   make package    → full pipeline: build → ext → vsce package → VSIX
 #   make clean      → cargo clean + remove copied binary
 
-BIN_SRC := target/release/tui.exe
+BIN_SRC := target/release/delta.exe
 BIN_DST := vscode-extension/bin/delta.exe
 EXT_DIR := vscode-extension
 

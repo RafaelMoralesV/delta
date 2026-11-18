@@ -1,3 +1,4 @@
+mod cli;
 mod components;
 mod config;
 mod screens;
@@ -64,6 +65,11 @@ impl App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // Con argumentos: modo CLI (no interactivo). Sin argumentos: TUI.
+    if std::env::args_os().len() > 1 {
+        std::process::exit(cli::run());
+    }
+
     let _ = std::io::stdout().execute(PushKeyboardEnhancementFlags(
         KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
     ));

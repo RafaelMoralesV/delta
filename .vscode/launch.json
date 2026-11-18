@@ -5,29 +5,29 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug unit tests in library 'core'",
+      "name": "Debug unit tests in library 'delta_core'",
       "type": "lldb",
       "request": "launch",
       "cargo": {
-        "args": ["test", "--package=core"]
+        "args": ["test", "--package=delta_core"]
       }
     },
     {
-      "name": "Debug executable 'tui'",
+      "name": "Debug executable 'delta'",
       "type": "lldb",
       "request": "launch",
       "cargo": {
-        "args": ["run", "--bin=tui", "--package=tui"]
+        "args": ["run", "--bin=delta", "--package=tui"]
       },
       "args": [],
       "terminal": "external"
     },
     {
-      "name": "Debug unit tests in executable 'tui'",
+      "name": "Debug unit tests in executable 'delta'",
       "type": "lldb",
       "request": "launch",
       "cargo": {
-        "args": ["test", "--bin=tui", "--package=tui"]
+        "args": ["test", "--bin=delta", "--package=tui"]
       }
     }
   ]

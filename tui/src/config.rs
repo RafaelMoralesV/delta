@@ -22,7 +22,7 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
-    fn file_path() -> PathBuf {
+    pub fn file_path() -> PathBuf {
         let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
         path.push("bump");
         let _ = fs::create_dir_all(&path);

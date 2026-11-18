@@ -9,7 +9,7 @@
 #   just clean      → cargo clean + remove copied binary
 
 # Paths
-bin_src := "target/release/tui.exe"
+bin_src := "target/release/delta.exe"
 bin_dst := "vscode-extension/bin/delta.exe"
 ext_dir := "vscode-extension"
 
