@@ -2,7 +2,7 @@
   "name": "delta-sonda-fin700",
   "displayName": "Delta Fin700",
   "description": "Launch the Delta TUI application in the integrated terminal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "RafaelMorales",
   "engines": {
     "vscode": "^1.85.0"
