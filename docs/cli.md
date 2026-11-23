@@ -81,3 +81,17 @@ Mensaje multilínea:
 ```
 
 `list`: `{ "dir": "...", "projects": [{ "name", "path", "type", "web", "bl" }] }`.
+
+## Skill para Claude Code
+
+El repo es también un marketplace de plugins de Claude Code (`.claude-plugin/marketplace.json`)
+con el plugin `delta` (`plugin/`), que trae una skill para que el agente use este CLI. Para
+instalarlo, en Claude Code:
+
+```
+/plugin marketplace add RafaelMoralesV/delta
+/plugin install delta@delta
+```
+
+La skill busca `delta` en el PATH o el `delta.exe` de la extensión de VS Code, así que la
+extensión instalada debe ser una versión con CLI.

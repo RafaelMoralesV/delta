@@ -1,0 +1,9 @@
+{
+  "name": "delta",
+  "version": "0.1.0",
+  "description": "Subir versiones (bump) de proyectos Fin700 V8 usando el CLI de delta.",
+  "author": {
+    "name": "Rafael Morales Venegas",
+    "url": "https://github.com/RafaelMoralesV"
+  }
+}

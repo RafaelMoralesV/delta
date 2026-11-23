@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "delta",
+  "description": "Herramientas de versionamiento para proyectos Fin700 V8.",
+  "owner": {
+    "name": "Rafael Morales Venegas",
+    "url": "https://github.com/RafaelMoralesV"
+  },
+  "plugins": [
+    {
+      "name": "delta",
+      "description": "Skill para subir versiones de proyectos Fin700 V8 con el CLI de delta.",
+      "source": "./plugin",
+      "category": "productivity"
+    }
+  ]
+}
